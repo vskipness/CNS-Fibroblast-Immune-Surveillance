@@ -1,0 +1,372 @@
+---
+title: "Endothelial cells"
+date: "2023-06-23"
+output:
+  html_document:
+    self_contained: no
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    collapsed: no
+    smooth_scroll: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r include=FALSE}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+# load packages
+
+```{r load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(dplyr)
+  library(purrr)
+  library(ggplot2)
+  library(here)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  library(scran)
+  library(pheatmap)
+  library(biomaRt)
+  library(fgsea)
+  library(grid)
+  library(gridExtra)
+  library(msigdbr)
+  library(muscat)
+  library(ggpubr)
+  library(ExploreSCdataSeurat3)
+  library(enrichplot)
+  #library(Matrix.utils)
+  library(destiny)
+  library(clusterProfiler)
+  library(org.Mm.eg.db)
+  library(DOSE)
+  })
+```
+
+# load file
+
+```{r load file}
+basedir <- here()
+seurat <- readRDS(paste0(basedir,"/data/endothelial_cells.rds"))
+```
+
+
+# processing file
+
+```{r process file, eval=TRUE, fig.height=5, fig.width=5.5}
+processing <- function(seurat){
+  seurat <- NormalizeData(object = seurat)
+  seurat <- FindVariableFeatures(object = seurat)
+  seurat <- ScaleData(object = seurat, verbose = FALSE)
+
+  seurat <- RunPCA(object = seurat, npcs = 30, verbose = FALSE, )
+  seurat <- RunUMAP(object = seurat, reduction = "pca", dims = 1:20)
+
+  res = c(0.1, 0.2, 0.25, 0.4, 0.6, 0.8)
+  seurat <- FindNeighbors(object = seurat, reduction = "pca", dims = 1:20)
+  for(i in 1:length(res)){
+    seurat <- FindClusters(object = seurat, resolution = res[i], random.seed = 1234)
+  }
+  return(seurat)
+}
+
+seurat <- processing(seurat)
+Idents(seurat) <- seurat$timepoint
+seurat$timepoint <- factor(seurat$timepoint, levels = c("d0", "d8", "d20"))
+```
+
+# different timepoints
+
+```{r UMAP grouped by timepoints, fig.height=5, fig.width=5}
+coltimepoint <- c((brewer.pal(11, "PiYG")[c(9,3)]),
+                (brewer.pal(11, "PRGn")[c(3)]))
+names(coltimepoint) <- unique(seurat$timepoint)
+
+DimPlot(seurat, reduction = "umap", group.by = "timepoint", pt.size = 0.4, cols = coltimepoint, shuffle = T)
+```
+
+```{r cell count timepoint, fig.height=4, fig.width=4}
+cell_count <- data.frame(table(seurat$timepoint))
+colnames(cell_count) <- c("timepoint", "count")
+hsize <- 1.5
+
+ggplot(cell_count, aes(x = hsize, y = count, fill = timepoint)) +
+  scale_fill_manual(values = coltimepoint) +
+  geom_col(color = "white") +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() +
+  ggtitle("timepoint_count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15)) +
+  geom_text(aes(label = count), position = position_stack(vjust = 0.5))
+```
+
+```{r UMAP split by timepoint res 0.6, fig.height=5, fig.width=12}
+Idents(seurat) <- seurat$RNA_snn_res.0.1
+DimPlot(seurat, reduction = "umap", split.by = "timepoint", label = T, pt.size = 0.4)
+```
+
+# endothelial cell annotation
+
+```{r visualization T cell cluster res 0.6, fig.height=5, fig.width=5}
+Idents(seurat) <- seurat$RNA_snn_res.0.1
+DimPlot(seurat, reduction = "umap", label = T, pt.size = 0.4)
+```
+
+## run marker genes
+
+```{r run marker genes for annotation}
+Idents(seurat) <- seurat$RNA_snn_res.0.1
+all.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox")
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> markers.top20
+markers.top20
+ 
+#write.table(seurat_markers, file = "//sg.hcare.ch/appl//kssg-institutimmunbiologie/Sarah/CNS CCL19 D20/Cleaned Code and updated files/DEgenes_Markergenes/Markergenes_Fibroblasts_res0.25_B6_D20_Naive.txt", row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+```
+
+## umap
+
+```{r annotation, fig.height=5, fig.width=6}
+Idents(seurat) <- seurat$RNA_snn_res.0.1
+
+seurat$clusterlabel <- "-"
+seurat$clusterlabel[which(Idents(seurat)=="0")] <- "Capillary"
+seurat$clusterlabel[which(Idents(seurat)=="1")] <- "Venous" 
+seurat$clusterlabel[which(Idents(seurat)=="2")] <- "CP EndC"
+seurat$clusterlabel[which(Idents(seurat)=="3")] <- "Arterial" 
+seurat$clusterlabel[which(Idents(seurat)=="4")] <- "Capillary/Fbs"
+seurat$clusterlabel[which(Idents(seurat)=="5")] <- "Erythroid cells"
+
+Idents(seurat) <- seurat$clusterlabel
+seurat <- subset(seurat, idents = c("Erythroid cells", "Capillary/Fbs"), invert = T)
+
+seurat$clusterlabel <- factor(seurat$clusterlabel, levels = c("Venous", "Arterial","Capillary", "CP EndC"))
+
+## color palette clusters
+library(pals)
+colcluster <- c(tol()[c(2:7)])
+names(colcluster) <- c("Venous", "Arterial", "Capillary", "CP EndC")
+
+Idents(seurat) <- seurat$clusterlabel
+DimPlot(seurat, reduction = "umap", cols = colcluster)
+
+```
+
+```{r final UMAP split by timepoint, fig.height=5, fig.width=13}
+DimPlot(seurat, cols = colcluster, split.by = "timepoint")
+```
+
+## dotplot
+
+```{r dotplot T cells annotated, fig.height=6, fig.width=5}
+Idents(seurat) <- seurat$clusterlabel
+
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("Vwf", "Nr2f2", "Slc38a5", "Bmx", "Vegfc", "Sema3g", "Ptprb", "Pecam1", "Podxl", "Icam2", "Cldn5", "Ocln", "Tpm1", "Slc16a1", "Mfsd2a", "Tfrc", "Igf1r", "Cxcl12", "Flt1", "Kdr", "Tie1", "Ca4", "Plvap", "Vcam1"))%>%
+  left_join(., genes, by = "geneID")
+
+
+DotPlot(seurat, assay = "RNA", features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = "italic")) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab("") + ylab("")
+
+```
+
+```{r capillary markers}
+#all.markers <- FindMarkers(seurat, ident.1 = "Capillary 2", ident.2 = c("Capillary 3"), min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox", only.pos = T)
+#all.markers %>%
+  #top_n(n = 40, wt = avg_log2FC) -> markers.top20
+#markers.top20
+```
+
+## endothelial cell frequencies per timepoint 
+
+```{r frequencies per timepoint}
+datList <- NULL
+for(t in unique(seurat$timepoint)){
+  seuratSub <- subset(seurat, timepoint==t)
+  print(dim(seuratSub))
+  dat_t <- as.data.frame(table(seuratSub$clusterlabel)) %>%
+  mutate(percent=Freq/ncol(seuratSub)) %>% mutate(timepoint=t)
+  datList[[t]] <- dat_t
+}
+
+dat_all <- do.call("rbind", datList)
+
+## plot abundance
+ggbarplot(dat_all, x= "timepoint", y= "percent", fill = "Var1", legend = "right", legend.titel = "cluster", ylab = "frequency", palette = colcluster)  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  # scale_x_discrete(limits=orddatasets)
+```
+
+# Ccl19 expression
+```{r Ccl19 featureplot}
+
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+selGenes <- data.frame(geneID = c("Ccl19", "Pdgfrb")) %>%
+  left_join(., genes, by = "geneID")
+
+FeaturePlot(object = seurat, features = selGenes$gene, pt.size = 1, cols = c("gray","magenta3"), split.by = "timepoint")
+#genes %>% filter(grepl("Rosa", gene))
+
+
+```
+
+# Chemokine expression
+
+```{r violin plots chemokine expression all, fig.height=4, fig.width=5}
+
+selGenes <- data.frame(geneID = c("Cxcl12", "Ccl19", "Cxcl10", "Cxcl11")) %>%
+  left_join(., genes, by = "geneID")
+
+Idents(seurat) <- seurat$timepoint
+
+for (i in 1:length(selGenes$gene)){
+  print(VlnPlot(seurat, features = selGenes$gene[i], pt.size = 0, cols = coltimepoint)+
+          theme_classic() +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25), legend.position = "none") + labs(x = ""))
+}
+```
+
+```{r violin plots chemokine expression per cluster, fig.height=4, fig.width=5}
+
+selGenes <- data.frame(geneID = c("Cxcl12", "Ccl19", "Cxcl10", "Cxcl11")) %>%
+  left_join(., genes, by = "geneID")
+
+Idents(seurat) <- seurat$clusterlabel
+
+for (i in 1:length(selGenes$gene)){
+  print(VlnPlot(seurat, features = selGenes$gene[i], pt.size = 0, cols = colcluster)+
+          theme_classic() +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25), legend.position = "none") + labs(x = ""))
+}
+```
+
+
+```{r violin plots chemokine expression venous, fig.height=4, fig.width=5}
+Idents(seurat) <- seurat$clusterlabel
+seurat_sub <- subset(seurat, idents = "Venous")
+
+selGenes <- data.frame(geneID = c("Cxcl12", "Ccl19", "Cxcl10", "Cxcl11", "Cxcl9")) %>%
+  left_join(., genes, by = "geneID")
+
+Idents(seurat_sub) <- seurat_sub$timepoint
+
+for (i in 1:length(selGenes$gene)){
+  print(VlnPlot(seurat_sub, features = selGenes$gene[i], pt.size = 0, cols = coltimepoint)+
+          theme_classic() +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25), legend.position = "none") + labs(x = ""))
+}
+```
+
+```{r violin plots chemokine expression arterial, fig.height=4, fig.width=5}
+Idents(seurat) <- seurat$clusterlabel
+seurat_sub <- subset(seurat, idents = "Arterial")
+
+selGenes <- data.frame(geneID = c("Cxcl12", "Ccl19", "Cxcl10", "Cxcl11", "Cxcl9")) %>%
+  left_join(., genes, by = "geneID")
+
+Idents(seurat_sub) <- seurat_sub$timepoint
+
+for (i in 1:length(selGenes$gene)){
+  print(VlnPlot(seurat_sub, features = selGenes$gene[i], pt.size = 0, cols = coltimepoint)+
+          theme_classic() +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25), legend.position = "none") + labs(x = ""))
+}
+```
+
+# GSEA
+
+## d8
+
+```{r GSEA  d8, fig.height=4, fig.width=6}
+
+## calculate DE genes for perivascular fibroblasts 
+
+Idents(seurat) <- seurat$timepoint
+levels(seurat) <- c("d0", "d8", "d20")
+
+markerGenes<- FindAllMarkers(seurat, assay ="RNA",
+                                     only.pos = TRUE, min.pct = 0.05,
+                                     logfc.threshold = 0.1,
+                                     test.use = "wilcox")
+
+markerGenes <- markerGenes %>% mutate(EnsID = gsub("\\..*$", "", gene))
+ 
+DEgenes <- markerGenes %>% filter(cluster == "d8")
+ego <- enrichGO(gene      = unique(DEgenes$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+ego <- setReadable(ego, OrgDb = org.Mm.eg.db)
+
+selGO <- c("GO:0009615", "GO:0035456", "GO:0045088", "GO:0019221", "GO:0034341", "GO:0016032")
+
+ego_sel <- ego %>% filter(ego@result$ID %in% selGO)
+
+barplot(ego_sel,
+  x = "count",
+  color = "qvalue",
+  font.size = 12,
+  label_format = 30,
+  palette = colPal) + theme_classic()
+```
+
+```{r GSEA  d20, fig.height=4, fig.width=6}
+ 
+DEgenes <- markerGenes%>% filter(cluster == "d20")
+ego <- enrichGO(gene      = unique(DEgenes$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+ego <- setReadable(ego, OrgDb = org.Mm.eg.db)
+
+selGO <- c("GO:0071559", "GO:0090130", "GO:0016197", "GO:0043542", "GO:0043534", "GO:0019827")
+
+ego_sel <- ego %>% filter(ego@result$ID %in% selGO)
+
+barplot(ego_sel,
+  x = "count",
+  color = "qvalue",
+  font.size = 12,
+  label_format = 30,
+  palette = colPal) + theme_classic()
+```
+
+```{r save endothelial cell file}
+saveRDS(seurat, file = paste0(basedir, "/data/endothelial_cells_annotated.rds"))
+```
+
+# sessionInfo
+```{r sessionInfo}
+sessionInfo()
+date()
+```

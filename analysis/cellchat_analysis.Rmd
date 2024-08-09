@@ -1,0 +1,507 @@
+---
+title: "cellchat analysis - fibroblasts & T cells"
+date: "2023-06-23"
+output:
+  html_document:
+    self_contained: no
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    collapsed: no
+    smooth_scroll: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r include=FALSE}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+# load packages
+
+```{r load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(dplyr)
+  library(purrr)
+  library(ggplot2)
+  library(here)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  library(scran)
+  library(pheatmap)
+  library(biomaRt)
+  library(fgsea)
+  library(grid)
+  library(gridExtra)
+  library(msigdbr)
+  library(muscat)
+  library(ggpubr)
+  library(ExploreSCdataSeurat3)
+  library(enrichplot)
+  #library(Matrix.utils)
+  library(destiny)
+  library(clusterProfiler)
+  library(org.Mm.eg.db)
+  library(DOSE)
+  library(CellChat)
+  library(patchwork)
+  options(stringsAsFactors = FALSE)
+  })
+```
+
+# load files
+
+```{r load file}
+basedir <- here()
+Fbs <- readRDS(paste0(basedir, "/data/fibroblasts_annotated.rds"))
+Tcells <- readRDS(paste0(basedir, "/data/T_cells_annotated.rds"))
+```
+
+# Prep files
+
+```{r preparing files and merge}
+Idents(Tcells) <- Tcells$clusterlabel
+Tcells <- subset(Tcells, idents = c("NK cells", "ILC2"), invert = T)
+Tcells$clusterlabel_cc <- "-"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="ydT")] <- "ydT"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Tcm CD4/CD8")] <- "Tcm CD4/CD8"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Tem CD4")] <- "Tem CD4"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Treg")] <- "Treg"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Te CD4")] <- "Te CD4"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Te CD8")] <- "Te CD8"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="ISG Te CD8")] <- "ISG Te CD8"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Tem CD8")] <- "Tem CD8"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Trm CD8")] <- "Trm CD8"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="ISG Trm CD8")] <- "ISG Trm CD8"
+Tcells$clusterlabel_cc[which(Idents(Tcells)=="Cx3cr1+ CD8")] <- "Cx3cr1+ CD8"
+unique(Tcells$clusterlabel_cc)
+
+Idents(Fbs) <- Fbs$clusterlabel
+Fbs$clusterlabel_cc <- "-"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Pial fibroblasts")] <- "Meningeal fibroblasts"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Arachnoid fibroblasts")] <- "Meningeal fibroblasts"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Dural fibroblasts")] <- "Dural fibroblasts"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="?")] <- "Meningeal fibroblasts"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Pericytes")] <- "Pericytes"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Perivascular fibroblasts")] <- "Perivascular fibroblasts"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Perivascular fibroblasts activated")] <- "Perivascular fibroblasts"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="Vascular smooth muscle cells")] <- "Vascular smooth muscle cells"
+Fbs$clusterlabel_cc[which(Idents(Fbs)=="CP/ME periv fibroblasts")] <- "CP/ME periv fibroblasts"
+unique(Fbs$clusterlabel_cc)
+
+## merge
+seurat <- merge(Fbs, Tcells)
+```
+
+
+# all together
+
+```{r all}
+## all
+Idents(seurat) <- seurat$clusterlabel_cc
+seurat_all <- subset(seurat, downsample = 200)
+
+table(seurat_all$clusterlabel_cc)
+seurat <- NormalizeData(object = seurat_all)
+```
+
+## create cellchat object 
+
+```{r create CellChat object}
+sce <- as.SingleCellExperiment(seurat_all)
+rownames(sce) = gsub("^.*\\.", "", rownames(sce))
+cellchat <- createCellChat(object = sce, group.by = "clusterlabel_cc")
+```
+
+```{r set ligand receptor database}
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+
+# use all CellChatDB except for "Non-protein Signaling" for cell-cell communication analysis
+CellChatDB.use <- CellChatDB
+cellchat@DB <- CellChatDB.use
+```
+
+```{r preprocessing the expression data for cell-cell communication analysis}
+# subset the expression data of signaling genes for saving computation cost
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 4) # do parallel
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+# compute communication probability and infer cellular communication network
+cellchat <- computeCommunProb(cellchat)
+```
+
+```{r set ligand receptor interaction database}
+cellchat <- filterCommunication(cellchat, min.cells = 35)
+df.net <- subsetCommunication(cellchat)
+```
+
+```{r communication probability}
+cellchat <- computeCommunProbPathway(cellchat, thresh = 1)
+cellchat <- aggregateNet(cellchat)
+
+groupSize <- as.numeric(table(cellchat@idents))
+par(mfrow = c(1,2), xpd = T)
+
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+
+mat <- cellchat@net$weight
+par(mfrow = c(3,4), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+```
+
+## visualization of signalling pathways
+
+```{r heatmap}
+table(seurat$clusterlabel_cc)
+# Heatmap
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "weight", sources.use = c("Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibrobalsts", "Dural fibroblasts", "CP/ME periv fibroblasts"), targets.use = c("Treg", "Te CD4", "Te CD8", "ISG Te CD8", "Tem CD4", "Tem CD8", "Trm CD8", "ISG Trm CD8", "Tcm CD4/CD8", "ydT", "Cx3cr1+ CD8"))
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "count", sources.use = c("Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibrobalsts", "Dural fibroblasts", "CP/ME periv fibroblasts"), targets.use = c("Treg", "Te CD4", "Te CD8", "ISG Te CD8", "Tem CD4", "Tem CD8", "Trm CD8", "ISG Trm CD8", "Tcm CD4/CD8", "ydT", "Cx3cr1+ CD8"))
+```
+
+
+```{r interactions d0, fig.height=6, fig.width=8}
+# Interactions
+pairLR.use <- extractEnrichedLR(cellchat, signaling = c("CCL","CXCL", "LAMININ", "NOTCH"))
+
+#levels(cellchat@idents)
+#netVisual_bubble(cellchat, sources.use = c("Pericytes","Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibroblasts", "Tem CD4","Tem CD8", "Tcm CD4/CD8"), pairLR.use = pairLR.use , sort.by.source = T,sort.by.target = T, remove.isolate = TRUE)
+
+netVisual_bubble(cellchat, sources.use = c("Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibrobalsts", "Dural fibroblasts", "CP/ME periv fibroblasts"), targets.use = c("Treg", "Te CD4", "Te CD8", "ISG Te CD8", "Tem CD4", "Tem CD8", "Trm CD8", "ISG Trm CD8", "Tcm CD4/CD8", "ydT", "Cx3cr1+ CD8"), pairLR.use = pairLR.use , sort.by.source = T, sort.by.target = T, remove.isolate = TRUE)
+```
+
+```{r dotplot d0}
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+
+netAnalysis_signalingRole_scatter(cellchat)
+```
+
+```{r vln plot d0}
+plotGeneExpression(cellchat, signaling = "CXCL", enriched.only = TRUE, type = "violin")
+plotGeneExpression(cellchat, signaling = "CCL", enriched.only = TRUE, type = "violin")
+```
+
+
+# d0 analysis
+
+```{r d0}
+## d0
+Idents(seurat) <- seurat$timepoint
+seurat_d0 <- subset(seurat, idents = "d0")
+
+Idents(seurat_d0) <- seurat_d0$clusterlabel_cc
+table(seurat_d0$clusterlabel_cc)
+
+## use all clusters with cellcount >=100
+seurat_d0 <- subset(seurat_d0, idents = c("Meningeal fibroblasts", "Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells", "Tem CD4", "Tcm CD4/CD8", "Tem CD8", "ydT"))
+
+seurat_d0 <- subset(seurat_d0, downsample = 200)
+table(seurat_d0$clusterlabel_cc)
+seurat_d0 <- NormalizeData(object = seurat_d0)
+```
+
+## create cellchat object 
+
+```{r create CellChat object}
+sce <- as.SingleCellExperiment(seurat_d0)
+rownames(sce) = gsub("^.*\\.", "", rownames(sce))
+cellchat <- createCellChat(object = sce, group.by = "clusterlabel_cc")
+
+```
+
+```{r set ligand receptor database}
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+
+# use all CellChatDB except for "Non-protein Signaling" for cell-cell communication analysis
+CellChatDB.use <- CellChatDB
+cellchat@DB <- CellChatDB.use
+```
+
+```{r preprocessing the expression data for cell-cell communication analysis}
+# subset the expression data of signaling genes for saving computation cost
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 4) # do parallel
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+# compute communication probability and infer cellular communication network
+cellchat <- computeCommunProb(cellchat)
+```
+
+```{r set ligand receptor interaction database}
+cellchat <- filterCommunication(cellchat, min.cells = 35)
+df.net <- subsetCommunication(cellchat)
+```
+
+```{r communication probability}
+cellchat <- computeCommunProbPathway(cellchat, thresh = 1)
+cellchat <- aggregateNet(cellchat)
+
+groupSize <- as.numeric(table(cellchat@idents))
+par(mfrow = c(1,2), xpd = T)
+
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+
+mat <- cellchat@net$weight
+par(mfrow = c(3,4), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+```
+
+## visualization of signalling pathways
+
+```{r heatmap d0}
+# Heatmap
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "weight", sources.use = c("Meningeal fibroblasts", "Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells"), targets.use = c("Tem CD4", "Tcm CD4/CD8", "Tem CD8", "ydT"))
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "count", sources.use = c("Meningeal fibroblasts", "Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells"), targets.use = c("Tem CD4", "Tcm CD4/CD8", "Tem CD8", "ydT"))
+```
+
+
+```{r interactions d0, fig.height=6, fig.width=6}
+# Interactions
+
+pairLR.use <- extractEnrichedLR(cellchat, signaling = c("CCL","CXCL", "LAMININ", "NOTCH"))
+
+levels(cellchat@idents)
+netVisual_bubble(cellchat, sources.use = c("Pericytes","Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibroblasts", "Tem CD4","Tem CD8", "Tcm CD4/CD8"), pairLR.use = pairLR.use , sort.by.source = T,sort.by.target = T, remove.isolate = TRUE)
+
+netVisual_bubble(cellchat, sources.use = c("Pericytes","Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibroblasts"), targets.use = c("Tem CD4","Tem CD8", "Tcm CD4/CD8"), pairLR.use = pairLR.use , sort.by.source = T, sort.by.target = T, remove.isolate = TRUE)
+```
+
+```{r dotplot d0}
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+
+netAnalysis_signalingRole_scatter(cellchat)
+```
+
+```{r vln plot d0}
+plotGeneExpression(cellchat, signaling = "CXCL", enriched.only = TRUE, type = "violin")
+plotGeneExpression(cellchat, signaling = "CCL", enriched.only = TRUE, type = "violin")
+```
+
+# d8
+
+```{r d8}
+## d8
+Idents(seurat) <- seurat$timepoint
+seurat_d8 <- subset(seurat, idents = "d8")
+table(seurat_d8$clusterlabel_cc)
+
+Idents(seurat_d8) <- seurat_d8$clusterlabel_cc
+seurat_d8 <- subset(seurat_d8, idents = c("Perivascular fibroblasts", "Trm CD8", "Treg", "CP/ME periv fibroblasts", "Tem CD4", "Vascular smooth muscle cells", "Tcm CD4/CD8", "Tem CD8", "ydT", "Pericytes"), invert = T)
+table(seurat_d8$clusterlabel_cc)
+
+seurat_d8 <- subset(seurat_d8, downsample = 200)
+seurat_d8 <- NormalizeData(object = seurat_d8)
+```
+
+## create cellchat object 
+
+```{r create CellChat object}
+sce <- as.SingleCellExperiment(seurat_d8)
+rownames(sce) = gsub("^.*\\.", "", rownames(sce))
+cellchat <- createCellChat(object = sce, group.by = "clusterlabel_cc")
+
+```
+
+```{r set ligand receptor database}
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+
+# use all CellChatDB except for "Non-protein Signaling" for cell-cell communication analysis
+CellChatDB.use <- CellChatDB
+cellchat@DB <- CellChatDB.use
+```
+
+```{r preprocessing the expression data for cell-cell communication analysis}
+# subset the expression data of signaling genes for saving computation cost
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 4) # do parallel
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+# compute communication probability and infer cellular communication network
+cellchat <- computeCommunProb(cellchat)
+```
+
+```{r set ligand receptor interaction database}
+cellchat <- filterCommunication(cellchat, min.cells = 35)
+df.net <- subsetCommunication(cellchat)
+```
+
+```{r communication probability}
+cellchat <- computeCommunProbPathway(cellchat, thresh = 1)
+cellchat <- aggregateNet(cellchat)
+
+groupSize <- as.numeric(table(cellchat@idents))
+par(mfrow = c(1,2), xpd = T)
+
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+
+mat <- cellchat@net$weight
+par(mfrow = c(3,4), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+```
+
+## visualization of signalling pathways
+
+```{r heatmap d0}
+# Heatmap
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "weight", sources.use = c("Perivascular fibroblasts activated", "Meningeal fibrobalsts"), targets.use = c("Te CD4", "Te CD8", "Cx3cr1+ CD8"))
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "count", sources.use = c("Perivascular fibroblasts activated", "Meningeal fibrobalsts"), targets.use = c("Te CD4", "Te CD8", "Cx3cr1+ CD8"))
+```
+
+
+```{r interactions d0, fig.height=6, fig.width=6}
+# Interactions
+
+pairLR.use <- extractEnrichedLR(cellchat, signaling = c("CCL","CXCL", "LAMININ", "NOTCH"))
+
+levels(cellchat@idents)
+netVisual_bubble(cellchat, sources.use = c("Perivascular fibroblasts activated", "Meningeal fibrobalsts", "Te CD4", "Te CD8", "Cx3cr1+ CD8"), pairLR.use = pairLR.use , sort.by.source = T,sort.by.target = T, remove.isolate = TRUE)
+
+netVisual_bubble(cellchat, sources.use = c("Perivascular fibroblasts activated", "Meningeal fibrobalsts"), targets.use = c("Te CD4", "Te CD8", "Cx3cr1+ CD8"), pairLR.use = pairLR.use , sort.by.source = T, sort.by.target = T, remove.isolate = TRUE)
+```
+
+```{r dotplot d0}
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+
+netAnalysis_signalingRole_scatter(cellchat)
+```
+
+```{r vln plot d0}
+plotGeneExpression(cellchat, signaling = "CXCL", enriched.only = TRUE, type = "violin")
+plotGeneExpression(cellchat, signaling = "CCL", enriched.only = TRUE, type = "violin")
+```
+
+# d20
+
+```{r d20}
+## d20
+Idents(seurat) <- seurat$timepoint
+seurat_d20 <- subset(seurat, idents = "d20")
+table(seurat_d20$clusterlabel_cc)
+
+Idents(seurat_d20) <- seurat_d20$clusterlabel_cc
+unique(Idents(seurat_d20))
+seurat_d20 <- subset(seurat_d20, idents = c("Te CD4", "Te CD8", "Perivascular fibroblasts activated", "ydT", "CP/ME periv fibroblasts"), invert = T)
+table(seurat_d20$clusterlabel_cc)
+
+seurat_d20 <- subset(seurat_d20, downsample = 200)
+seurat_d20 <- NormalizeData(object = seurat_d20)
+```
+
+## create cellchat object 
+
+```{r create CellChat object}
+sce <- as.SingleCellExperiment(seurat_d20)
+rownames(sce) = gsub("^.*\\.", "", rownames(sce))
+cellchat <- createCellChat(object = sce, group.by = "clusterlabel_cc")
+
+```
+
+```{r set ligand receptor database}
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+
+# use all CellChatDB except for "Non-protein Signaling" for cell-cell communication analysis
+CellChatDB.use <- CellChatDB
+cellchat@DB <- CellChatDB.use
+```
+
+```{r preprocessing the expression data for cell-cell communication analysis}
+# subset the expression data of signaling genes for saving computation cost
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 4) # do parallel
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+# compute communication probability and infer cellular communication network
+cellchat <- computeCommunProb(cellchat)
+```
+
+```{r set ligand receptor interaction database}
+cellchat <- filterCommunication(cellchat, min.cells = 35)
+df.net <- subsetCommunication(cellchat)
+```
+
+```{r communication probability}
+cellchat <- computeCommunProbPathway(cellchat, thresh = 1)
+cellchat <- aggregateNet(cellchat)
+
+groupSize <- as.numeric(table(cellchat@idents))
+par(mfrow = c(1,2), xpd = T)
+
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+
+mat <- cellchat@net$weight
+par(mfrow = c(3,4), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+```
+
+## visualization of signalling pathways
+
+```{r heatmap d0}
+# Heatmap
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "weight", sources.use = c("Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibrobalsts"), targets.use = c("Tem CD4", "Tem CD8", "Tcm CD4/CD8", "Trm CD8", "Treg"))
+
+netVisual_heatmap(cellchat, color.heatmap = "RdPu", measure = "count", sources.use = c("Pericytes", "Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibroblasts"), targets.use = c("Tem CD4", "Tem CD8", "Tcm CD4/CD8", "Trm CD8", "Treg"))
+```
+
+
+```{r interactions d0, fig.height=6, fig.width=6}
+# Interactions
+
+pairLR.use <- extractEnrichedLR(cellchat, signaling = c("CCL","CXCL", "LAMININ", "NOTCH"))
+
+levels(cellchat@idents)
+netVisual_bubble(cellchat, sources.use = c("Pericytes","Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibroblasts", "Tem CD4","Tem CD8", "Tcm CD4/CD8", "Trm CD8", "Treg"), pairLR.use = pairLR.use , sort.by.source = T,sort.by.target = T, remove.isolate = TRUE)
+
+netVisual_bubble(cellchat, sources.use = c("Pericytes","Perivascular fibroblasts", "Vascular smooth muscle cells", "Meningeal fibroblasts"), targets.use = c("Tem CD4","Tem CD8", "Tcm CD4/CD8", "Trm CD8", "Treg"), pairLR.use = pairLR.use , sort.by.source = T, sort.by.target = T, remove.isolate = TRUE)
+```
+
+```{r dotplot d0}
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+
+netAnalysis_signalingRole_scatter(cellchat)
+```
+
+```{r vln plot d0}
+plotGeneExpression(cellchat, signaling = "CXCL", enriched.only = TRUE, type = "violin")
+plotGeneExpression(cellchat, signaling = "CCL", enriched.only = TRUE, type = "violin")
+```
+

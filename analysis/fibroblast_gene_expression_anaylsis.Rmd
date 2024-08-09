@@ -1,0 +1,585 @@
+---
+title: "fibroblast gene expression analysis"
+output:
+  html_document:
+    self_contained: no
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    collapsed: no
+    smooth_scroll: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r include=FALSE}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+# load packages
+
+```{r load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(dplyr)
+  library(purrr)
+  library(ggplot2)
+  library(here)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  library(scran)
+  library(pheatmap)
+  library(biomaRt)
+  library(fgsea)
+  library(grid)
+  library(gridExtra)
+  library(msigdbr)
+  library(muscat)
+  library(ggpubr)
+  library(ExploreSCdataSeurat3)
+  library(enrichplot)
+  #library(Matrix.utils)
+  library(destiny)
+  library(clusterProfiler)
+  library(org.Mm.eg.db)
+  library(DOSE)
+  })
+```
+
+# load annotated file
+```{r load complete file}
+basedir <- here()
+seurat <- readRDS(paste0(basedir, "/data/fibroblasts_annotated.rds"))
+```
+
+# file preparation
+
+```{r file preparation}
+Idents(seurat) <- seurat$clusterlabel
+levels(seurat)
+seurat$clusterlabel_gsea <- "-"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="Pial Fbs")] <- "Meningeal Fbs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="Arachnoid Fbs")] <- "Meningeal Fbs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="Dural Fbs")] <- "Dural Fbs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="?")] <- "Meningeal Fbs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="Pericytes")] <- "Pericytes"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="Periv. Fbs")] <- "Periv. Fbs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="Periv. Fbs activated")] <- "Periv. Fbs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="VSMCs")] <- "VSMCs"
+seurat$clusterlabel_gsea[which(Idents(seurat)=="CP/ME periv. Fbs")] <- "CP/ME periv. Fbs"
+unique(seurat$clusterlabel_gsea)
+```
+
+
+# scatterplot meningeal fibroblasts
+
+## d0 - d20
+
+```{r scatter plot meningeal fibroblasts d0 - d20, fig.height=6, fig.width=12, eval=TRUE, include=TRUE}
+
+## calculate DE genes for meningeal fibroblasts 
+
+seurat_men <- subset(seurat, clusterlabel_gsea %in% c("Meningeal Fbs"))
+seurat_men_d20<- subset(seurat_men, timepoint %in% c("d8"), invert = T)
+
+Idents(seurat_men_d20) <- seurat_men_d20$timepoint
+levels(seurat_men_d20) <- c("d0", "d20")
+
+markerGenes_men_d20 <- FindAllMarkers(seurat_men_d20, assay ="RNA",
+                                     only.pos = TRUE, min.pct = 0.05,
+                                     logfc.threshold = 0.1,
+                                     test.use = "wilcox")
+## scatterplot for meningeal fibroblasts
+
+allID <- seurat_men_d20
+Idents(allID) <- allID$timepoint
+avg.allID <- AverageExpression(allID, group.by = "timepoint")
+avg.allID <- data.frame(log1p(avg.allID$RNA)) %>%
+  rownames_to_column(var="gene")
+
+#expression frequency
+GeneFreqSel <- as.data.frame(GetAssayData(allID, assay = "RNA", slot = "data")) %>%
+  tibble::rownames_to_column(var="gene") %>% mutate(count=rowSums(.!=0)-1) %>%
+  mutate(countFreq=count/ncol(allID)) %>%
+  dplyr::select(gene, count, countFreq) %>%
+  dplyr::filter(countFreq>=0.4)
+genes.to.label <- markerGenes_men_d20 %>% group_by(.,cluster) %>%
+  dplyr::filter(avg_log2FC > 0.4) %>% mutate(labelNam=gsub("^.*\\.","",gene))  %>%
+  dplyr::filter(cluster == "d20")
+avg.allID <- avg.allID %>% mutate(labelNam=gsub("^.*\\.","",gene)) %>%
+  mutate(colourGrp=ifelse(gene %in% genes.to.label$gene, "labeled",
+                          ifelse(gene %in% markerGenes_men_d20$gene, "significant", "not significant"))) %>% dplyr::filter(gene%in%GeneFreqSel$gene)
+ggscatter(avg.allID, x="d20", y="d0",
+                     color = "colourGrp",
+                     palette = c("#B2182B", "#808080", "#2166AC"),
+                     label= "labelNam",
+                     label.select = genes.to.label$labelNam,
+                     repel = T,
+                     label.rectangle = F,
+                     xlab = "d20",
+                     ylab = "d0",
+                     font.label = c("10", "plain","black"),
+                     size=2,)
+```
+
+## d0 - d8
+
+```{r scatter plot meningeal fibroblasts d0 - d8, fig.height=6, fig.width=12, eval=TRUE, include=TRUE}
+
+## calculate DE genes for meningeal fibroblasts 
+
+seurat_men_d8<- subset(seurat_men, timepoint %in% c("d20"), invert = T)
+
+Idents(seurat_men_d8) <- seurat_men_d8$timepoint
+levels(seurat_men_d8) <- c("d0", "d8")
+
+markerGenes_men_d8 <- FindAllMarkers(seurat_men_d8, assay ="RNA",
+                                     only.pos = TRUE, min.pct = 0.05,
+                                     logfc.threshold = 0.1,
+                                     test.use = "wilcox")
+
+## scatterplot for meningeal fibroblasts
+
+allID <- seurat_men_d8
+Idents(allID) <- allID$timepoint
+avg.allID <- AverageExpression(allID, group.by = "timepoint")
+avg.allID <- data.frame(log1p(avg.allID$RNA)) %>%
+  rownames_to_column(var="gene")
+
+#expression frequency
+GeneFreqSel <- as.data.frame(GetAssayData(allID, assay = "RNA", slot = "data")) %>%
+  tibble::rownames_to_column(var="gene") %>% mutate(count=rowSums(.!=0)-1) %>%
+  mutate(countFreq=count/ncol(allID)) %>%
+  dplyr::select(gene, count, countFreq) %>%
+  dplyr::filter(countFreq>=0.3)
+genes.to.label <- markerGenes_men_d8 %>% group_by(.,cluster) %>%
+  dplyr::filter(avg_log2FC > 0.7) %>% mutate(labelNam=gsub("^.*\\.","",gene))  %>%
+  dplyr::filter(cluster == "d8")
+avg.allID <- avg.allID %>% mutate(labelNam=gsub("^.*\\.","",gene)) %>%
+  mutate(colourGrp=ifelse(gene %in% genes.to.label$gene, "labeled",
+                          ifelse(gene %in% markerGenes_men_d8$gene, "significant", "not significant"))) %>% dplyr::filter(gene%in%GeneFreqSel$gene)
+ggscatter(avg.allID, x="d8", y="d0",
+                     color = "colourGrp",
+                     palette = c("#B2182B", "#808080", "#2166AC"),
+                     label= "labelNam",
+                     label.select = genes.to.label$labelNam,
+                     repel = T,
+                     label.rectangle = F,
+                     xlab = "d8",
+                     ylab = "d0",
+                     font.label = c("10", "plain","black"),
+                     size=2,)
+
+
+```
+
+# scatterplot perivascular fibroblasts
+
+## d0 - d20
+
+```{r scatter plot perivascular fibroblasts d0 - d20, fig.height=6, fig.width=12}
+## calculate DE genes for perivascular fibroblasts 
+
+seurat_per <- subset(seurat, clusterlabel_gsea %in% c("Periv. Fbs"))
+seurat_per_d20<- subset(seurat_per, timepoint %in% c("d8"), invert = T)
+
+Idents(seurat_per_d20) <- seurat_per_d20$timepoint
+levels(seurat_per_d20) <- c("d0", "d20")
+
+markerGenes_per_d20 <- FindAllMarkers(seurat_per_d20, assay ="RNA",
+                                     only.pos = TRUE, min.pct = 0.05,
+                                     logfc.threshold = 0.1,
+                                     test.use = "wilcox")
+## scatterplot for perivascular fibroblasts
+
+allID <- seurat_per_d20
+Idents(allID) <- allID$timepoint
+avg.allID <- AverageExpression(allID, group.by = "timepoint")
+avg.allID <- data.frame(log1p(avg.allID$RNA)) %>%
+  rownames_to_column(var="gene")
+
+#expression frequency
+GeneFreqSel <- as.data.frame(GetAssayData(allID, assay = "RNA", slot = "data")) %>%
+  tibble::rownames_to_column(var="gene") %>% mutate(count=rowSums(.!=0)-1) %>%
+  mutate(countFreq=count/ncol(allID)) %>%
+  dplyr::select(gene, count, countFreq) %>%
+  dplyr::filter(countFreq>=0.4)
+genes.to.label <- markerGenes_per_d20 %>% group_by(.,cluster) %>%
+  dplyr::filter(avg_log2FC > 0.4) %>% mutate(labelNam=gsub("^.*\\.","",gene))  %>%
+  dplyr::filter(cluster == "d20")
+avg.allID <- avg.allID %>% mutate(labelNam=gsub("^.*\\.","",gene)) %>%
+  mutate(colourGrp=ifelse(gene %in% genes.to.label$gene, "labelled",
+                          ifelse(gene %in% markerGenes_per_d20$gene, "significant", "not significant"))) %>% dplyr::filter(gene%in%GeneFreqSel$gene)
+ggscatter(avg.allID, x="d20", y="d0",
+                     color = "colourGrp",
+                     palette = c("#B2182B", "#808080", "#2166AC"),
+                     label= "labelNam",
+                     label.select = genes.to.label$labelNam,
+                     repel = T,
+                     label.rectangle = F,
+                     xlab = "d20",
+                     ylab = "d0",
+                     font.label = c("10", "plain","black"),
+                     size=2,)
+```
+
+## d0 - d8
+
+```{r scatter plot perivascular fibroblasts d0 - d8, fig.height=6, fig.width=12}
+## calculate DE genes for perivascular fibroblasts 
+
+seurat_per_d8<- subset(seurat_per, timepoint %in% c("d20"), invert = T)
+
+Idents(seurat_per_d8) <- seurat_per_d8$timepoint
+levels(seurat_per_d8) <- c("d0", "d8")
+
+markerGenes_per_d8 <- FindAllMarkers(seurat_per_d8, assay ="RNA",
+                                     only.pos = TRUE, min.pct = 0.05,
+                                     logfc.threshold = 0.1,
+                                     test.use = "wilcox")
+## scatterplot for perivascular fibroblasts
+
+allID <- seurat_per_d8
+Idents(allID) <- allID$timepoint
+avg.allID <- AverageExpression(allID, group.by = "timepoint")
+avg.allID <- data.frame(log1p(avg.allID$RNA)) %>%
+  rownames_to_column(var="gene")
+
+#expression frequency
+GeneFreqSel <- as.data.frame(GetAssayData(allID, assay = "RNA", slot = "data")) %>%
+  tibble::rownames_to_column(var="gene") %>% mutate(count=rowSums(.!=0)-1) %>%
+  mutate(countFreq=count/ncol(allID)) %>%
+  dplyr::select(gene, count, countFreq) %>%
+  dplyr::filter(countFreq>=0.4)
+genes.to.label <- markerGenes_per_d8 %>% group_by(.,cluster) %>%
+  dplyr::filter(avg_log2FC > 0.4) %>% mutate(labelNam=gsub("^.*\\.","",gene))  %>%
+  dplyr::filter(cluster == "d8")
+avg.allID <- avg.allID %>% mutate(labelNam=gsub("^.*\\.","",gene)) %>%
+  mutate(colourGrp=ifelse(gene %in% genes.to.label$gene, "labelled",
+                          ifelse(gene %in% markerGenes_per_d8$gene, "significant", "not significant"))) %>% dplyr::filter(gene%in%GeneFreqSel$gene)
+ggscatter(avg.allID, x="d8", y="d0",
+                     color = "colourGrp",
+                     palette = c("#B2182B", "#808080", "#2166AC"),
+                     label= "labelNam",
+                     label.select = genes.to.label$labelNam,
+                     repel = T,
+                     label.rectangle = F,
+                     xlab = "d8",
+                     ylab = "d0",
+                     font.label = c("10", "plain","black"),
+                     size=2,)
+```
+
+# GSEA meningeal fibroblasts
+
+## d0 - d20
+
+```{r GSEA meningeal fibroblasts d0 - d20, height=6, fig.width=9, eval=TRUE, include=TRUE}
+
+DEgenes <- markerGenes_men_d20 %>% mutate(EnsID = gsub("\\..*$", "", gene))
+ 
+DEgenes <- DEgenes%>% filter(cluster == "d20")
+ego <- enrichGO(gene      = unique(DEgenes$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+ego <- setReadable(ego, OrgDb = org.Mm.eg.db)
+
+selGO <- c("GO:0010820", "GO:0010819", "GO:0048247", "GO:0022407", "GO:0035924", "GO:0034341", "GO:0030198", "GO:0035456", "GO:0030111")
+which(ego$ID == "GO:0010819")
+
+ego[1:40]
+ego_sel <- ego %>% filter(ego@result$ID %in% selGO)
+
+barplot(ego_sel,
+  x = "count",
+  color = "qvalue",
+  font.size = 12,
+  label_format = 30,
+  palette = colPal)
+```
+
+## d0 - d8
+
+```{r GSEA  meningeal fibroblasts d0 - d8, height=6, fig.width=9}
+
+DEgenes<- markerGenes_men_d8 %>% mutate(EnsID = gsub("\\..*$", "", gene))
+ 
+DEgenes <- DEgenes%>% filter(cluster == "d8")
+ego <- enrichGO(gene      = unique(DEgenes$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+ego <- setReadable(ego, OrgDb = org.Mm.eg.db)
+ego[1:50]
+selGO <- c("GO:0010820", "GO:0010819", "GO:0048247", "GO:0022407", "GO:0035924", "GO:0034341", "GO:0030198", "GO:0035456", "GO:0030111")
+
+ego_sel <- ego %>% filter(ego@result$ID %in% selGO)
+
+
+barplot(ego_sel,
+  x = "count",
+  color = "qvalue",
+  font.size = 12,
+  label_format = 30,
+  palette = colPal)
+```
+
+# GSEA perivascular fibroblasts
+
+## d0 - d20
+
+```{r GSEA perivascular fibroblasts d0 - d20}
+
+DEgenes<- markerGenes_per_d20 %>% mutate(EnsID = gsub("\\..*$", "", gene))
+ 
+DEgenes <- DEgenes%>% filter(cluster == "d20")
+ego <- enrichGO(gene      = unique(DEgenes$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+ego <- setReadable(ego, OrgDb = org.Mm.eg.db)
+ego[872]
+#filter for selected gene sets
+
+selGO <- c("GO:0034341", "GO:0035456", "GO:0016032", "GO:0002711", "GO:0002685", "GO:0031589", "GO:0010594")
+
+ego_sel <- ego %>% filter(ego@result$ID %in% selGO)
+
+barplot(ego_sel,
+  x = "count",
+  color = "qvalue",
+  font.size = 12,
+  label_format = 30,
+  palette = colPal)
+```
+
+## d0 - d8
+
+```{r GSEA perivascular fibroblasts d0 - d8}
+seurat_sub <- subset(seurat, clusterlabel_gsea %in% c("Periv. Fbs"))
+seurat_sub<- subset(seurat_sub, timepoint %in% c("d20"), invert = T)
+
+Idents(seurat_sub) <- seurat_sub$timepoint
+levels(seurat_sub) <- c("d0", "d8")
+
+markerGenes <- FindAllMarkers(seurat_sub, assay ="RNA",
+                                     only.pos = TRUE, min.pct = 0.05,
+                                     logfc.threshold = 0.1,
+                                     test.use = "wilcox")
+
+DEgenes<- markerGenes %>% mutate(EnsID = gsub("\\..*$", "", gene))
+ 
+DEgenes <- DEgenes%>% filter(cluster == "d8")
+ego <- enrichGO(gene      = unique(DEgenes$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+ego <- setReadable(ego, OrgDb = org.Mm.eg.db)
+
+#filter for selected gene sets
+
+selGO <- c("GO:0034341", "GO:0035456", "GO:0016032", "GO:0002711", "GO:0002685", "GO:0031589", "GO:0010594")
+
+ego_sel <- ego %>% filter(ego@result$ID %in% selGO)
+
+barplot(ego_sel,
+  x = "count",
+  color = "qvalue",
+  font.size = 12,
+  label_format = 30,)
+```
+
+# GSEA on all markergenes Fibroblasts
+```{r enriched pathways, height=6, fig.width=9, eval=TRUE, include=TRUE}
+
+Idents(seurat) <- seurat$clusterlabel
+
+seurat$clusterlabel <- factor(seurat$clusterlabel,levels=c("VSMCs", "Perivenular fibroblasts", "ECM fibroblasts", "Pericytes"))
+
+table(seurat$clusterlabel)
+
+clVec <- levels(seurat$clusterlabel)
+markers <- FindAllMarkers(object = seurat, assay ="RNA", only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.20, test.use = "wilcox") 
+
+#write.table(markers, file = ("//sg.hcare.ch/appl//kssg-institutimmunbiologie/Sarah/CNS CCL19 D20/Cleaned Code and updated files/DEgenes_Markergenes/Markergenes_Fibroblasts.txt"),row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+
+
+clVec <- levels(seurat$clusterlabel)
+
+markers<- markers %>% mutate(EnsID = gsub("\\..*$", "",gene))
+
+GOall <- lapply(clVec, function(cl){
+ Allmarkers <- markers %>% 
+    filter(cluster == cl)  #%>% 
+  egoSS <- enrichGO(gene      = unique(markers$EnsID),
+                OrgDb         = org.Mm.eg.db,
+                keyType       = 'ENSEMBL',
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+  
+  egoSS <- setReadable(egoSS, OrgDb = org.Mm.eg.db)
+  egoSSres <- egoSS@result %>% filter(p.adjust < 0.05) %>% 
+    mutate(subset=cl)
+})
+
+names(GOall) <- clVec
+
+GOallDat <- do.call("rbind", GOall)
+
+#write.table(GOallDat, file = ("//sg.hcare.ch/appl//kssg-institutimmunbiologie/Sarah/CNS CCL19 D20/Cleaned Code and updated files/DEgenes_Markergenes/GSEAonMarkergenes_Fibroblasts.txt"), row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+    
+
+selGO <- c("VSMCs.GO:0003012","VSMCs.GO:0045333","VSMCs.GO:1903522", "Perivenular fibroblasts.GO:0007264", "Perivenular fibroblasts.GO:0010594", "Perivenular fibroblasts.GO:0071674", "ECM fibroblasts.GO:0031589", "ECM fibroblasts.GO:0030198", "Pericytes.GO:0051056","Pericytes.GO:1904062","Pericytes.GO:0043542")
+
+
+GOconsDat <- do.call("rbind", GOall) %>% rownames_to_column(., var="IDlab") %>% 
+  filter(IDlab %in% selGO)
+GOconsDat$subset <- factor(GOconsDat$subset, levels=c("VSMCs", "Perivenular fibroblasts", "ECM fibroblasts", "Pericytes"))
+GOconsDat <- GOconsDat %>% 
+  arrange(., Count) %>% arrange(., subset) %>%
+  mutate(nom=as.numeric(gsub("\\/.*", "", GeneRatio))) %>% 
+  mutate(denom=as.numeric(gsub(".*\\/", "", GeneRatio))) %>% 
+  mutate(geneRatio=nom/denom) %>% 
+  mutate(one_minPadjust=(1-qvalue))
+
+
+level_order <- unique(GOconsDat$Description)
+
+ggplot(GOconsDat, aes(x=factor(Description, level= level_order), y=geneRatio)) + 
+  geom_point(aes(col=subset, size=Count, alpha=one_minPadjust)) + 
+  scale_color_manual(values = colPal)+
+  scale_alpha_continuous(range = c(0.5,1), name="qvalue",
+                         labels=c(0.04, 0.03, 0.02, 0.01),
+                         breaks = c(0.96, 0.97, 0.98, 0.99)) +
+  scale_size_continuous(range = c(3,6), labels = c(2,4,6,8),
+                        breaks = c(2,4,6,8)) +
+  geom_segment(aes(x=Description, 
+                   xend=Description, 
+                   y=min(geneRatio), 
+                   yend=max(geneRatio)), 
+               linetype="dashed", 
+               size=0.1) +   # Draw dashed lines
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.border = element_rect(fill = NA), 
+        panel.grid = element_blank(), axis.title.y = element_blank())
+
+### bargraph
+
+GOconsDat <- GOconsDat %>% mutate(qscore=-log(p.adjust, base=10)) %>% 
+  mutate(DescriptionLab = paste0(subset, ": ", Description))
+p <- ggbarplot(GOconsDat, x = "DescriptionLab", y = "qscore",
+          fill = "subset",               
+          color = "subset",            
+          palette = colPal,            
+          sort.val = "asc",           
+          sort.by.groups = TRUE      
+          #x.text.angle = 90           
+          ) + 
+  rotate()
+p
+
+```
+
+
+
+# Add new slot for transgene expression
+```{r add slot, height=6, fig.width=9, eval=TRUE, include=TRUE}
+
+##Positive filtering
+# keep only the cells expressing gene X
+
+seuratSub <- subset(x=seurat, subset = Rosa26eyfp.Rosa26eyfp==0, invert = TRUE)
+
+seuratnonEYFP <- subset(x=seurat, subset = Rosa26eyfp.Rosa26eyfp==0)
+
+##add slot for eyfp expression
+
+seurat$eyfp.grp <- "eyfp.neg"
+seurat$eyfp.grp[WhichCells(seurat, expression = Rosa26eyfp.Rosa26eyfp > 0)] <- "eyfp.pos"
+Idents(seurat) <- "eyfp.grp"
+
+Idents(seurat) <- seurat$clusterlabel
+DimPlot(seurat, cols=colPal, reduction = "umap", split.by = "eyfp.grp")
+table(seurat$eyfp.grp, seurat$clusterlabel)
+
+```
+
+
+# check violinplots of fib populations split by eyfp expression
+```{r check markers violin, eval=T, include=T, height=6, fig.width=9}
+
+##calculate genes for each population separate 
+
+Idents(seurat) <- seurat$clusterlabel
+seuratECM <- subset(seurat, clusterlabel %in% c("ECM fibroblasts"))
+seuratVenu <- subset(seurat, clusterlabel %in% c("Perivenular fibroblasts"))
+
+Idents(seurat) <- seurat$eyfp.grp
+
+##Violin plots
+
+Idents(seuratVenu) <- seuratVenu$time
+
+VlnPlot(seuratVenu, features = "ENSMUSG00000032085.Tagln", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratVenu, features = "ENSMUSG00000035783.Acta2", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratVenu, features = "ENSMUSG00000050335.Lgals3", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratVenu, features = "ENSMUSG00000026728.Vim", split.by = "eyfp.grp", pt.size = 0)
+
+seuratVenud20 <- subset(seuratVenu, time %in% c("d20"))
+
+VlnPlot(seuratVenud20, features = "ENSMUSG00000032085.Tagln", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratVenud20, features = "ENSMUSG00000035783.Acta2", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratVenud20, features = "ENSMUSG00000050335.Lgals3", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratVenud20, features = "ENSMUSG00000026728.Vim", split.by = "eyfp.grp", pt.size = 0)
+
+Idents(seuratECM) <- seuratECM$time
+
+VlnPlot(seuratECM, features = "ENSMUSG00000001506.Col1a1", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECM, features = "ENSMUSG00000073411.H2-D1", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECM, features = "ENSMUSG00000036446.Lum", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECM, features = "ENSMUSG00000026728.Vim", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECM, features = "ENSMUSG00000040488.Ltbp4", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECM, features = "ENSMUSG00000020810.Cygb", split.by = "eyfp.grp", pt.size = 0)
+
+seuratECMd20 <- subset(seuratECM, time %in% c("d20"))
+
+VlnPlot(seuratECMd20, features = "Rosa26eyfp.Rosa26eyfp", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECMd20, features = "ENSMUSG00000061232.H2-K1", split.by = "eyfp.grp", pt.size = 0)
+VlnPlot(seuratECMd20, features = "ENSMUSG00000026814.Eng", split.by = "eyfp.grp", pt.size = 0)
+
+
+table(seurat$eyfp.grp)
+```
+
+# sessionInfo
+```{r sessionInfo}
+sessionInfo()
+date()
+```
+
+
+

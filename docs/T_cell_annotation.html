@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+<meta name="date" content="2024-04-19" />
+
+<title>T cell annotation</title>
+
+<script src="site_libs/header-attrs-2.27/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/main/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">CNS Fibroblast Immune Surveillance</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">T cell annotation</h1>
+<h4 class="date">2024-04-19</h4>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span>
+workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span
+class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2024-08-09
+</p>
+<p>
+<strong>Checks:</strong> <span
+class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>CNS Fibroblast Immune
+Surveillance/</code> <span class="glyphicon glyphicon-question-sign"
+aria-hidden="true"
+title="This is the local directory in which the code in this file was executed.">
+</span>
+</p>
+<p>
+This reproducible <a href="https://rmarkdown.rstudio.com">R Markdown</a>
+analysis was created with <a
+  href="https://github.com/workflowr/workflowr">workflowr</a> (version
+1.7.1). The <em>Checks</em> tab describes the reproducibility checks
+that were applied when the results were created. The <em>Past
+versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges">
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted
+changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R
+Markdown file created these results, you’ll want to first commit it to
+the Git repo. If you’re still working on the analysis, you can ignore
+this warning. When you’re finished, you can run
+<code>wflow_publish</code> to commit the R Markdown file and build the
+HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the
+global environment can affect the analysis in your R Markdown file in
+unknown ways. For reproduciblity it’s best to always run the code in an
+empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20240724code">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Seed:</strong>
+<code>set.seed(20240724)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20240724code"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20240724)</code> was run prior to running
+the code in the R Markdown file. Setting a seed ensures that any results
+that rely on randomness, e.g. subsampling or permutations, are
+reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Session information:</strong>
+recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package
+versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be
+confident that you successfully produced the results during this
+run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr
+project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomvskipnessCNSFibroblastImmuneSurveillancetreed415bd4eb7d2750ae96f942127dc108bbfdbcc1etargetblankd415bd4a">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Repository version:</strong>
+<a href="https://github.com/vskipness/CNS-Fibroblast-Immune-Surveillance/tree/d415bd4eb7d2750ae96f942127dc108bbfdbcc1e" target="_blank">d415bd4</a>
+</a>
+</p>
+</div>
+<div
+id="strongRepositoryversionstrongahrefhttpsgithubcomvskipnessCNSFibroblastImmuneSurveillancetreed415bd4eb7d2750ae96f942127dc108bbfdbcc1etargetblankd415bd4a"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development
+and connecting the code version to the results is critical for
+reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version
+<a href="https://github.com/vskipness/CNS-Fibroblast-Immune-Surveillance/tree/d415bd4eb7d2750ae96f942127dc108bbfdbcc1e" target="_blank">d415bd4</a>.
+See the <em>Past versions</em> tab to see a history of the changes made
+to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for
+the analysis have been committed to Git prior to generating the results
+(you can use <code>wflow_publish</code> or
+<code>wflow_git_commit</code>). workflowr only checks the R Markdown
+file, but you know if there are other scripts or data files that it
+depends on. Below is the status of the Git repository when the results
+were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .DS_Store
+    Ignored:    .Rhistory
+    Ignored:    .Rproj.user/
+    Ignored:    analysis/.DS_Store
+    Ignored:    analysis/.Rhistory
+
+Untracked files:
+    Untracked:  analysis/T_cell_annotation.Rmd
+    Untracked:  analysis/cellchat_EndC.Rmd
+    Untracked:  analysis/cellchat_analysis.Rmd
+    Untracked:  analysis/cluster_annotation.Rmd
+    Untracked:  analysis/endothelial_cell_annotation.Rmd
+    Untracked:  analysis/fibroblast_annotation.Rmd
+    Untracked:  analysis/fibroblast_gene_expression_anaylsis.Rmd
+    Untracked:  analysis/merge_and_QC.Rmd
+
+Unstaged changes:
+    Modified:   analysis/index.Rmd
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not
+included in this status report because it is ok for generated content to
+have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with
+<code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<div id="load-packages" class="section level1">
+<h1>load packages</h1>
+<pre class="r"><code>suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(dplyr)
+  library(purrr)
+  library(ggplot2)
+  library(here)
+  library(runSeurat3)
+  library(SingleCellExperiment)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  library(scran)
+  library(pheatmap)
+  library(biomaRt)
+  library(fgsea)
+  library(grid)
+  library(gridExtra)
+  library(msigdbr)
+  library(muscat)
+  library(ggpubr)
+  library(ExploreSCdataSeurat3)
+  library(enrichplot)
+  #library(Matrix.utils)
+  library(destiny)
+  library(clusterProfiler)
+  library(org.Mm.eg.db)
+  library(DOSE)
+  library(ggtext)
+  })</code></pre>
+</div>
+<div id="load-file" class="section level1">
+<h1>load file</h1>
+<pre class="r"><code>basedir &lt;- here()
+seurat &lt;- readRDS(file = paste0(basedir, &quot;/data/Tcells.rds&quot;))</code></pre>
+</div>
+<div id="processing" class="section level1">
+<h1>processing</h1>
+<pre class="r"><code>processing &lt;- function(seurat){
+  seurat &lt;- NormalizeData(object = seurat)
+  seurat &lt;- FindVariableFeatures(object = seurat)
+  seurat &lt;- ScaleData(object = seurat, verbose = FALSE)
+  seurat &lt;- RunPCA(object = seurat, npcs = 30, verbose = FALSE, )
+  seurat &lt;- RunUMAP(object = seurat, reduction = &quot;pca&quot;, dims = 1:20)
+  res = c(0.1, 0.2, 0.25, 0.4, 0.6, 0.8)
+  seurat &lt;- FindNeighbors(object = seurat, reduction = &quot;pca&quot;, dims = 1:20)
+  for(i in 1:length(res)){
+    seurat &lt;- FindClusters(object = seurat, resolution = res[i], random.seed = 1234)
+  }
+  return(seurat)
+}
+
+seurat &lt;- processing(seurat)</code></pre>
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 21975
+Number of edges: 734045
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9602
+Number of communities: 7
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 21975
+Number of edges: 734045
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9414
+Number of communities: 10
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 21975
+Number of edges: 734045
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9335
+Number of communities: 11
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 21975
+Number of edges: 734045
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9130
+Number of communities: 14
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 21975
+Number of edges: 734045
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8923
+Number of communities: 18
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 21975
+Number of edges: 734045
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8757
+Number of communities: 19
+Elapsed time: 3 seconds</code></pre>
+</div>
+<div id="different-timepoints" class="section level1">
+<h1>different timepoints</h1>
+<pre class="r"><code>coltimepoint &lt;- c((brewer.pal(11, &quot;PiYG&quot;)[c(9,3)]),
+                (brewer.pal(11, &quot;PRGn&quot;)[c(3)]))
+names(coltimepoint) &lt;- unique(seurat$timepoint)
+
+DimPlot(seurat, reduction = &quot;umap&quot;, group.by = &quot;timepoint&quot;, pt.size = 0.4, cols = coltimepoint, shuffle = T)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/UMAP%20grouped%20by%20timepoints-1.png" width="528" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>cell_count &lt;- data.frame(table(seurat$timepoint))
+colnames(cell_count) &lt;- c(&quot;timepoint&quot;, &quot;count&quot;)
+hsize &lt;- 1.5
+
+ggplot(cell_count, aes(x = hsize, y = count, fill = timepoint)) +
+  scale_fill_manual(values = coltimepoint) +
+  geom_col(color = &quot;white&quot;) +
+  coord_polar(theta = &quot;y&quot;) +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() +
+  ggtitle(&quot;timepoint_count&quot;) +
+  theme(plot.title = element_text(hjust = 0.5, size = 15)) +
+  geom_text(aes(label = count), position = position_stack(vjust = 0.5))</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/cell%20count%20timepoint-1.png" width="384" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$RNA_snn_res.0.6
+DimPlot(seurat, reduction = &quot;umap&quot;, split.by = &quot;timepoint&quot;, label = T, pt.size = 0.4)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/visualization%20T%20cells%20split%20by%20timepoint%20res%200.6-1.png" width="1152" style="display: block; margin: auto;" /></p>
+</div>
+<div id="t-cell-annotation" class="section level1">
+<h1>T cell annotation</h1>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$RNA_snn_res.0.6
+DimPlot(seurat, reduction = &quot;umap&quot;, label = T, pt.size = 0.4)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/visualization%20T%20cell%20cluster%20res%200.6-1.png" width="672" style="display: block; margin: auto;" /></p>
+<div id="run-marker-genes" class="section level2">
+<h2>run marker genes</h2>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$RNA_snn_res.0.6
+all.markers &lt;- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, test.use = &quot;wilcox&quot;)
+all.markers %&gt;%
+  group_by(cluster) %&gt;%
+  top_n(n = 40, wt = avg_log2FC) -&gt; markers.top20
+markers.top20</code></pre>
+<pre><code># A tibble: 720 × 7
+# Groups:   cluster [18]
+   p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene                      
+   &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;                     
+ 1     0      0.926 0.988 0.604         0 0       ENSMUSG00000053044.Cd8b1  
+ 2     0      1.24  0.784 0.408         0 0       ENSMUSG00000058216.Gstp3  
+ 3     0      0.888 0.947 0.582         0 0       ENSMUSG00000042385.Gzmk   
+ 4     0      0.834 0.749 0.389         0 0       ENSMUSG00000032231.Anxa2  
+ 5     0      1.50  0.511 0.183         0 0       ENSMUSG00000029658.Wdr95  
+ 6     0      1.23  0.559 0.235         0 0       ENSMUSG00000032380.Dapk2  
+ 7     0      1.75  0.987 0.663         0 0       ENSMUSG00000022584.Ly6c2  
+ 8     0      1.29  0.527 0.217         0 0       ENSMUSG00000114937.Gm30054
+ 9     0      1.38  0.501 0.193         0 0       ENSMUSG00000038304.Cd160  
+10     0      1.04  0.855 0.553         0 0       ENSMUSG00000015437.Gzmb   
+# ℹ 710 more rows</code></pre>
+<pre class="r"><code>#write.table(seurat_markers, file = &quot;//sg.hcare.ch/appl//kssg-institutimmunbiologie/Sarah/CNS CCL19 D20/Cleaned Code and updated files/DEgenes_Markergenes/Markergenes_Fibroblasts_res0.25_B6_D20_Naive.txt&quot;, row.names = FALSE, col.names = TRUE, quote = FALSE, sep = &quot;\t&quot;)</code></pre>
+</div>
+<div id="fusion-of-two-trm-cd8-clusters" class="section level2">
+<h2>fusion of two Trm CD8 clusters</h2>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$RNA_snn_res.0.6
+all.markers &lt;- FindMarkers(seurat, ident.1 = &quot;1&quot;, ident.2 = c(&quot;13&quot;), min.pct = 0.25, logfc.threshold = 0.25, test.use = &quot;wilcox&quot;)
+all.markers %&gt;%
+  top_n(n = 40, wt = avg_log2FC) -&gt; markers.top20
+markers.top20</code></pre>
+<pre><code>                                   p_val avg_log2FC pct.1 pct.2     p_val_adj
+ENSMUSG00000062006.Rpl34   1.953937e-194   1.151055 1.000 0.908 5.891121e-190
+ENSMUSG00000061983.Rps12   8.155815e-194   1.474268 0.998 0.779 2.458978e-189
+ENSMUSG00000093674.Rpl41   9.314741e-193   1.134661 1.000 0.948 2.808394e-188
+ENSMUSG00000057322.Rpl38   4.343798e-170   1.137557 1.000 0.910 1.309655e-165
+ENSMUSG00000067288.Rps28   2.823723e-168   1.190992 0.998 0.858 8.513525e-164
+ENSMUSG00000079523.Tmsb10  1.930912e-156   1.381458 0.996 0.805 5.821699e-152
+ENSMUSG00000025362.Rps26   1.925572e-153   1.818179 0.952 0.446 5.805600e-149
+ENSMUSG00000016252.Atp5e   9.026631e-140   1.401899 0.983 0.526 2.721529e-135
+ENSMUSG00000009927.Rps25   1.364731e-129   1.216417 0.990 0.676 4.114664e-125
+ENSMUSG00000062997.Rpl35   5.610676e-124   1.169856 0.992 0.678 1.691619e-119
+ENSMUSG00000058546.Rpl23a   2.852065e-96   1.226242 0.950 0.541  8.598977e-92
+ENSMUSG00000027907.S100a11  8.656046e-95   1.281444 0.936 0.401  2.609798e-90
+ENSMUSG00000060143.Gm10076  4.007983e-87   1.249633 0.873 0.300  1.208407e-82
+ENSMUSG00000057278.Snrpg    3.396636e-86   1.137649 0.939 0.425  1.024086e-81
+ENSMUSG00000071528.Atp5md   1.380549e-77   1.249392 0.792 0.227  4.162354e-73
+ENSMUSG00000060739.Nsa2     4.960091e-74   1.149535 0.859 0.333  1.495467e-69
+ENSMUSG00000024038.Ndufv3   3.722761e-69   1.251953 0.711 0.174  1.122413e-64
+ENSMUSG00000067847.Romo1    6.728376e-66   1.313207 0.674 0.167  2.028605e-61
+ENSMUSG00000050608.Micos10  1.345529e-65   1.236079 0.740 0.213  4.056769e-61
+ENSMUSG00000031231.Cox7b    5.628133e-65   1.247043 0.749 0.243  1.696882e-60
+ENSMUSG00000022450.Ndufa6   2.922036e-63   1.229094 0.743 0.236  8.809939e-59
+ENSMUSG00000036781.Rps27l   8.415442e-60   1.137654 0.724 0.212  2.537256e-55
+ENSMUSG00000033307.Mif      3.970678e-58   1.258258 0.645 0.172  1.197159e-53
+ENSMUSG00000038812.Trmt112  6.693186e-58   1.195361 0.668 0.187  2.017996e-53
+ENSMUSG00000018585.Atox1    8.427817e-55   1.172665 0.625 0.165  2.540987e-50
+ENSMUSG00000041697.Cox6a1   5.550888e-49   1.187383 0.568 0.150  1.673593e-44
+ENSMUSG00000063694.Cycs     3.151644e-46   1.152778 0.482 0.101  9.502206e-42
+ENSMUSG00000073616.Cops9    3.947253e-46   1.169164 0.542 0.140  1.190097e-41
+ENSMUSG00000021917.Spcs1    4.564560e-45   1.350161 0.452 0.084  1.376215e-40
+ENSMUSG00000013701.Timm23   1.054817e-42   1.232821 0.457 0.096  3.180273e-38
+ENSMUSG00000059278.Naa38    9.236893e-38   1.599816 0.358 0.056  2.784923e-33
+ENSMUSG00000052374.Actn2    2.887376e-32   1.266640 0.388 0.094  8.705439e-28
+ENSMUSG00000060803.Gstp1    2.351783e-31   1.448443 0.298 0.043  7.090626e-27
+ENSMUSG00000016344.Ppdpf    9.336156e-31   1.169832 0.370 0.086  2.814851e-26
+ENSMUSG00000028407.Smim27   1.445116e-27   1.421984 0.292 0.054  4.357025e-23
+ENSMUSG00000032381.Ciao2a   1.027225e-26   1.468839 0.272 0.045  3.097083e-22
+ENSMUSG00000072772.Grcc10   1.546478e-25   1.177331 0.297 0.064  4.662632e-21
+ENSMUSG00000056737.Capg     2.179678e-25   1.194326 0.349 0.101  6.571728e-21
+ENSMUSG00000066068.Gm13611  1.423666e-24   1.410784 0.282 0.060  4.292353e-20
+ENSMUSG00000025491.Ifitm1   6.933265e-15   1.289935 0.461 0.283  2.090379e-10</code></pre>
+<pre class="r"><code>seurat_sub &lt;- subset(seurat, idents = c(&quot;1&quot;, &quot;13&quot;))
+
+meta_data &lt;- seurat_sub@meta.data
+meta_data &lt;- meta_data %&gt;%
+        dplyr::rename(nUMI = nCount_RNA,
+                      nGene = nFeature_RNA)
+
+# Visualize the number UMIs/transcripts per cell
+meta_data %&gt;% 
+    ggplot(aes(color= RNA_snn_res.0.6, x=nUMI, fill= RNA_snn_res.0.6)) + 
+    geom_density(alpha = 0.2) + 
+    #scale_fill_manual(values = coldataset) + 
+    #scale_color_manual(values = coldataset) +
+    scale_x_log10() + 
+    theme_classic() +
+    ylab(&quot;Cell density&quot;) +
+    geom_vline(xintercept = 500)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/difference%20of%20the%20two%20Trm%20CD8%20clusters-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code># Visualize the number nGene per cell
+meta_data %&gt;% 
+    ggplot(aes(color= RNA_snn_res.0.6, x=nGene, fill= RNA_snn_res.0.6)) + 
+    geom_density(alpha = 0.2) + 
+    #scale_fill_manual(values = coldataset) + 
+    #scale_color_manual(values = coldataset) +
+    scale_x_log10() + 
+    theme_classic() +
+    ylab(&quot;Cell density&quot;) +
+    geom_vline(xintercept = 500)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/difference%20of%20the%20two%20Trm%20CD8%20clusters-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>table(seurat_sub$clusterlabel, seurat_sub$dataset)</code></pre>
+<pre><code>                             
+                              316781_01-1_20230323_Mu_B6_CNS_Naive_Stroma_1
+  Oligodendrocytes                                                        0
+  Microglia                                                               0
+  Astrocytes/Neurons                                                      0
+  Neurons 1                                                               0
+  Neurons 2                                                               0
+  Monocytes/Macrophages                                                   0
+  Macrophages                                                             0
+  Monocytes                                                               0
+  Neutrophils                                                             0
+  T cells 1                                                               0
+  T cells 2                                                               0
+  T cells 3                                                               0
+  Double positive (B&amp;T cells)                                             0
+  B cells 1                                                               0
+  B cells 2                                                               0
+  Proliferating B cells                                                   0
+  Endothelial cells 1                                                     0
+  Endothelial cells 2                                                     0
+  Endothelial cells 3                                                     0
+  Fibroblasts 1                                                           0
+  Fibroblasts 2                                                           0
+  Fibroblasts 3                                                           0
+  Fibroblasts 4                                                           0
+  Fibroblasts 5                                                           0
+                             
+                              316781_02-2_20230323_Mu_B6_CNS_Naive_Stroma_2
+  Oligodendrocytes                                                        0
+  Microglia                                                               0
+  Astrocytes/Neurons                                                      0
+  Neurons 1                                                               0
+  Neurons 2                                                               0
+  Monocytes/Macrophages                                                   0
+  Macrophages                                                             0
+  Monocytes                                                               0
+  Neutrophils                                                             0
+  T cells 1                                                               0
+  T cells 2                                                               0
+  T cells 3                                                               0
+  Double positive (B&amp;T cells)                                             0
+  B cells 1                                                               0
+  B cells 2                                                               0
+  Proliferating B cells                                                   0
+  Endothelial cells 1                                                     0
+  Endothelial cells 2                                                     0
+  Endothelial cells 3                                                     0
+  Fibroblasts 1                                                           0
+  Fibroblasts 2                                                           0
+  Fibroblasts 3                                                           0
+  Fibroblasts 4                                                           0
+  Fibroblasts 5                                                           0
+                             
+                              316781_04-4_20230323_Mu_B6_CNS_Naive_glia_Macs
+  Oligodendrocytes                                                         0
+  Microglia                                                                0
+  Astrocytes/Neurons                                                       0
+  Neurons 1                                                                0
+  Neurons 2                                                                0
+  Monocytes/Macrophages                                                    0
+  Macrophages                                                              0
+  Monocytes                                                                0
+  Neutrophils                                                              0
+  T cells 1                                                                0
+  T cells 2                                                                0
+  T cells 3                                                                0
+  Double positive (B&amp;T cells)                                              0
+  B cells 1                                                                0
+  B cells 2                                                                0
+  Proliferating B cells                                                    0
+  Endothelial cells 1                                                      0
+  Endothelial cells 2                                                      0
+  Endothelial cells 3                                                      0
+  Fibroblasts 1                                                            0
+  Fibroblasts 2                                                            0
+  Fibroblasts 3                                                            0
+  Fibroblasts 4                                                            0
+  Fibroblasts 5                                                            0
+                             
+                              316781_03-3_20230323_Mu_B6_CNS_Naive_Lym_glia_Macs
+  Oligodendrocytes                                                             0
+  Microglia                                                                    0
+  Astrocytes/Neurons                                                           0
+  Neurons 1                                                                    0
+  Neurons 2                                                                    0
+  Monocytes/Macrophages                                                        0
+  Macrophages                                                                  0
+  Monocytes                                                                    0
+  Neutrophils                                                                  0
+  T cells 1                                                                    0
+  T cells 2                                                                    4
+  T cells 3                                                                    0
+  Double positive (B&amp;T cells)                                                  0
+  B cells 1                                                                    0
+  B cells 2                                                                    0
+  Proliferating B cells                                                        0
+  Endothelial cells 1                                                          0
+  Endothelial cells 2                                                          0
+  Endothelial cells 3                                                          0
+  Fibroblasts 1                                                                0
+  Fibroblasts 2                                                                0
+  Fibroblasts 3                                                                0
+  Fibroblasts 4                                                                0
+  Fibroblasts 5                                                                0
+                             
+                              340821_24-1_20231214_Mu_Ccl19_CNS_Stroma_Naive
+  Oligodendrocytes                                                         0
+  Microglia                                                                0
+  Astrocytes/Neurons                                                       0
+  Neurons 1                                                                0
+  Neurons 2                                                                0
+  Monocytes/Macrophages                                                    0
+  Macrophages                                                              0
+  Monocytes                                                                0
+  Neutrophils                                                              0
+  T cells 1                                                                0
+  T cells 2                                                                0
+  T cells 3                                                                0
+  Double positive (B&amp;T cells)                                              0
+  B cells 1                                                                0
+  B cells 2                                                                0
+  Proliferating B cells                                                    0
+  Endothelial cells 1                                                      0
+  Endothelial cells 2                                                      0
+  Endothelial cells 3                                                      0
+  Fibroblasts 1                                                            0
+  Fibroblasts 2                                                            0
+  Fibroblasts 3                                                            0
+  Fibroblasts 4                                                            0
+  Fibroblasts 5                                                            0
+                             
+                              354851_3-3_20240606_Mu_Stroma_CNS_MHV_d8
+  Oligodendrocytes                                                   0
+  Microglia                                                          0
+  Astrocytes/Neurons                                                 0
+  Neurons 1                                                          0
+  Neurons 2                                                          0
+  Monocytes/Macrophages                                              0
+  Macrophages                                                        0
+  Monocytes                                                          0
+  Neutrophils                                                        0
+  T cells 1                                                          0
+  T cells 2                                                          0
+  T cells 3                                                          0
+  Double positive (B&amp;T cells)                                        0
+  B cells 1                                                          0
+  B cells 2                                                          0
+  Proliferating B cells                                              0
+  Endothelial cells 1                                                0
+  Endothelial cells 2                                                0
+  Endothelial cells 3                                                0
+  Fibroblasts 1                                                      0
+  Fibroblasts 2                                                      0
+  Fibroblasts 3                                                      0
+  Fibroblasts 4                                                      0
+  Fibroblasts 5                                                      0
+                             
+                              354851_4-4_20240606_Mu_CD3_CNS_MHV_d8
+  Oligodendrocytes                                                0
+  Microglia                                                       0
+  Astrocytes/Neurons                                              0
+  Neurons 1                                                       0
+  Neurons 2                                                       0
+  Monocytes/Macrophages                                           0
+  Macrophages                                                     0
+  Monocytes                                                       0
+  Neutrophils                                                     0
+  T cells 1                                                       3
+  T cells 2                                                       1
+  T cells 3                                                       0
+  Double positive (B&amp;T cells)                                     0
+  B cells 1                                                       0
+  B cells 2                                                       0
+  Proliferating B cells                                           0
+  Endothelial cells 1                                             0
+  Endothelial cells 2                                             0
+  Endothelial cells 3                                             0
+  Fibroblasts 1                                                   0
+  Fibroblasts 2                                                   0
+  Fibroblasts 3                                                   0
+  Fibroblasts 4                                                   0
+  Fibroblasts 5                                                   0
+                             
+                              354851_5-5_20240606_Mu_CD11b_CNS_MHV_d8
+  Oligodendrocytes                                                  0
+  Microglia                                                         0
+  Astrocytes/Neurons                                                0
+  Neurons 1                                                         0
+  Neurons 2                                                         0
+  Monocytes/Macrophages                                             0
+  Macrophages                                                       0
+  Monocytes                                                         0
+  Neutrophils                                                       0
+  T cells 1                                                         3
+  T cells 2                                                         0
+  T cells 3                                                         0
+  Double positive (B&amp;T cells)                                       0
+  B cells 1                                                         0
+  B cells 2                                                         0
+  Proliferating B cells                                             0
+  Endothelial cells 1                                               0
+  Endothelial cells 2                                               0
+  Endothelial cells 3                                               0
+  Fibroblasts 1                                                     0
+  Fibroblasts 2                                                     0
+  Fibroblasts 3                                                     0
+  Fibroblasts 4                                                     0
+  Fibroblasts 5                                                     0
+                             
+                              312581_08-8_20230309_Mu_CCL19cre_CNS_D20_Stroma
+  Oligodendrocytes                                                          0
+  Microglia                                                                 0
+  Astrocytes/Neurons                                                        0
+  Neurons 1                                                                 0
+  Neurons 2                                                                 0
+  Monocytes/Macrophages                                                     0
+  Macrophages                                                               0
+  Monocytes                                                                 0
+  Neutrophils                                                               0
+  T cells 1                                                                 0
+  T cells 2                                                                 0
+  T cells 3                                                                 0
+  Double positive (B&amp;T cells)                                               0
+  B cells 1                                                                 0
+  B cells 2                                                                 0
+  Proliferating B cells                                                     0
+  Endothelial cells 1                                                       0
+  Endothelial cells 2                                                       0
+  Endothelial cells 3                                                       0
+  Fibroblasts 1                                                             0
+  Fibroblasts 2                                                             0
+  Fibroblasts 3                                                             0
+  Fibroblasts 4                                                             0
+  Fibroblasts 5                                                             0
+                             
+                              o310951_04-4_20230228_Mu_CCL19cre_CNS_D20_Stroma
+  Oligodendrocytes                                                           0
+  Microglia                                                                  0
+  Astrocytes/Neurons                                                         0
+  Neurons 1                                                                  0
+  Neurons 2                                                                  0
+  Monocytes/Macrophages                                                      0
+  Macrophages                                                                0
+  Monocytes                                                                  0
+  Neutrophils                                                                0
+  T cells 1                                                                  0
+  T cells 2                                                                  0
+  T cells 3                                                                  0
+  Double positive (B&amp;T cells)                                                0
+  B cells 1                                                                  0
+  B cells 2                                                                  0
+  Proliferating B cells                                                      0
+  Endothelial cells 1                                                        0
+  Endothelial cells 2                                                        0
+  Endothelial cells 3                                                        0
+  Fibroblasts 1                                                              0
+  Fibroblasts 2                                                              0
+  Fibroblasts 3                                                              0
+  Fibroblasts 4                                                              0
+  Fibroblasts 5                                                              0
+                             
+                              o310951_05-5_20230228_Mu_CCL19cre_CNS_D20_CD45posCD11bneg_1
+  Oligodendrocytes                                                                      0
+  Microglia                                                                             0
+  Astrocytes/Neurons                                                                    0
+  Neurons 1                                                                             0
+  Neurons 2                                                                             0
+  Monocytes/Macrophages                                                                 0
+  Macrophages                                                                           0
+  Monocytes                                                                             0
+  Neutrophils                                                                           0
+  T cells 1                                                                          1875
+  T cells 2                                                                           665
+  T cells 3                                                                             0
+  Double positive (B&amp;T cells)                                                           0
+  B cells 1                                                                             0
+  B cells 2                                                                             0
+  Proliferating B cells                                                                 0
+  Endothelial cells 1                                                                   0
+  Endothelial cells 2                                                                   0
+  Endothelial cells 3                                                                   0
+  Fibroblasts 1                                                                         0
+  Fibroblasts 2                                                                         0
+  Fibroblasts 3                                                                         0
+  Fibroblasts 4                                                                         0
+  Fibroblasts 5                                                                         0
+                             
+                              o310951_06-6_20230228_Mu_CCL19cre_CNS_D20_CD45posCD11bneg_2
+  Oligodendrocytes                                                                      0
+  Microglia                                                                             0
+  Astrocytes/Neurons                                                                    0
+  Neurons 1                                                                             0
+  Neurons 2                                                                             0
+  Monocytes/Macrophages                                                                 0
+  Macrophages                                                                           0
+  Monocytes                                                                             0
+  Neutrophils                                                                           0
+  T cells 1                                                                           766
+  T cells 2                                                                           188
+  T cells 3                                                                             0
+  Double positive (B&amp;T cells)                                                           0
+  B cells 1                                                                             0
+  B cells 2                                                                             0
+  Proliferating B cells                                                                 0
+  Endothelial cells 1                                                                   0
+  Endothelial cells 2                                                                   0
+  Endothelial cells 3                                                                   0
+  Fibroblasts 1                                                                         0
+  Fibroblasts 2                                                                         0
+  Fibroblasts 3                                                                         0
+  Fibroblasts 4                                                                         0
+  Fibroblasts 5                                                                         0
+                             
+                              o310951_07-7_20230228_Mu_CCL19cre_CNS_D20_CD45posMicroglMacs
+  Oligodendrocytes                                                                       0
+  Microglia                                                                              0
+  Astrocytes/Neurons                                                                     0
+  Neurons 1                                                                              0
+  Neurons 2                                                                              0
+  Monocytes/Macrophages                                                                  0
+  Macrophages                                                                            0
+  Monocytes                                                                              0
+  Neutrophils                                                                            0
+  T cells 1                                                                            172
+  T cells 2                                                                             38
+  T cells 3                                                                              0
+  Double positive (B&amp;T cells)                                                            0
+  B cells 1                                                                              0
+  B cells 2                                                                              0
+  Proliferating B cells                                                                  0
+  Endothelial cells 1                                                                    0
+  Endothelial cells 2                                                                    0
+  Endothelial cells 3                                                                    0
+  Fibroblasts 1                                                                          0
+  Fibroblasts 2                                                                          0
+  Fibroblasts 3                                                                          0
+  Fibroblasts 4                                                                          0
+  Fibroblasts 5                                                                          0
+                             
+                              344261_14-14_20240221_Mu_Ccl19_CNS_Stroma_MHV_d20
+  Oligodendrocytes                                                            0
+  Microglia                                                                   0
+  Astrocytes/Neurons                                                          0
+  Neurons 1                                                                   0
+  Neurons 2                                                                   0
+  Monocytes/Macrophages                                                       0
+  Macrophages                                                                 0
+  Monocytes                                                                   0
+  Neutrophils                                                                 0
+  T cells 1                                                                   0
+  T cells 2                                                                   0
+  T cells 3                                                                   0
+  Double positive (B&amp;T cells)                                                 0
+  B cells 1                                                                   0
+  B cells 2                                                                   0
+  Proliferating B cells                                                       0
+  Endothelial cells 1                                                         0
+  Endothelial cells 2                                                         0
+  Endothelial cells 3                                                         0
+  Fibroblasts 1                                                               0
+  Fibroblasts 2                                                               0
+  Fibroblasts 3                                                               0
+  Fibroblasts 4                                                               0
+  Fibroblasts 5                                                               0</code></pre>
+<p>Main difference: gene and UMI count –&gt; therefore will be
+joined</p>
+</div>
+<div id="fusion-of-the-two-tem-clusters" class="section level2">
+<h2>fusion of the two Tem clusters</h2>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$RNA_snn_res.0.6
+all.markers &lt;- FindMarkers(seurat, ident.1 = &quot;4&quot;, ident.2 = c(&quot;5&quot;), min.pct = 0.25, logfc.threshold = 0.25, test.use = &quot;wilcox&quot;, only.pos = T)
+all.markers %&gt;%
+  top_n(n = 40, wt = avg_log2FC) -&gt; markers.top20
+markers.top20</code></pre>
+<pre><code>                                    p_val avg_log2FC pct.1 pct.2     p_val_adj
+ENSMUSG00000023132.Gzma     2.842832e-111  3.6664653 0.700 0.506 8.571139e-107
+ENSMUSG00000015437.Gzmb      3.127257e-96  2.7524289 0.548 0.255  9.428681e-92
+ENSMUSG00000002033.Cd3g      9.034797e-82  0.6234197 0.936 0.999  2.723991e-77
+ENSMUSG00000035042.Ccl5      1.766356e-81  0.8211499 0.992 0.996  5.325563e-77
+ENSMUSG00000025491.Ifitm1    1.499762e-66  5.0010682 0.280 0.059  4.521782e-62
+ENSMUSG00000001020.S100a4    2.502272e-61  1.4161447 0.676 0.541  7.544349e-57
+ENSMUSG00000001025.S100a6    5.018462e-59  0.9014029 0.862 0.891  1.513066e-54
+ENSMUSG00000033213.AA467197  6.099683e-54  2.4823310 0.414 0.206  1.839054e-49
+ENSMUSG00000009687.Fxyd5     1.242625e-52  0.7683666 0.821 0.958  3.746513e-48
+ENSMUSG00000025492.Ifitm3    1.528552e-46  3.3861035 0.261 0.079  4.608584e-42
+ENSMUSG00000068220.Lgals1    6.916215e-33  1.2922935 0.629 0.605  2.085239e-28
+ENSMUSG00000075602.Ly6a      4.456153e-21  0.7025242 0.760 0.872  1.343530e-16
+ENSMUSG00000079017.Ifi27l2a  3.056190e-17  0.6377861 0.815 0.874  9.214413e-13
+ENSMUSG00000057666.Gapdh     4.458943e-16  0.6061161 0.721 0.888  1.344371e-11
+ENSMUSG00000042385.Gzmk      3.677519e-12  0.9392908 0.585 0.667  1.108772e-07
+ENSMUSG00000026728.Vim       7.918597e-12  0.7430318 0.631 0.728  2.387457e-07
+ENSMUSG00000021591.Glrx      5.994444e-10  1.4601129 0.279 0.215  1.807325e-05
+ENSMUSG00000007891.Ctsd      9.072876e-07  0.7385088 0.610 0.766  2.735472e-02
+ENSMUSG00000032436.Cmtm7     1.625369e-06  0.9833892 0.478 0.542  4.900486e-02
+ENSMUSG00000040212.Emp3      1.917310e-06  0.7400757 0.565 0.663  5.780690e-02
+ENSMUSG00000039236.Isg20     1.126059e-05  1.0589679 0.409 0.418  3.395067e-01
+ENSMUSG00000030165.Klrd1     2.443903e-05  0.6993046 0.569 0.651  7.368368e-01
+ENSMUSG00000046516.Cox17     6.567425e-04  0.6643781 0.559 0.682  1.000000e+00
+ENSMUSG00000018930.Ccl4      3.743554e-03  0.8945032 0.440 0.478  1.000000e+00
+ENSMUSG00000024014.Pim1      9.215557e-03  0.6253543 0.322 0.430  1.000000e+00
+ENSMUSG00000026500.Cox20     4.997572e-02  0.6714529 0.315 0.412  1.000000e+00
+ENSMUSG00000053560.Ier2      1.001901e-01  0.6111948 0.273 0.342  1.000000e+00
+ENSMUSG00000002345.Borcs8    1.354285e-01  0.6961936 0.276 0.350  1.000000e+00
+ENSMUSG00000035692.Isg15     1.447392e-01  1.2800283 0.260 0.271  1.000000e+00
+ENSMUSG00000020496.Rnf187    1.489447e-01  0.6238596 0.363 0.465  1.000000e+00
+ENSMUSG00000030167.Klrc1     1.707534e-01  0.8336271 0.316 0.341  1.000000e+00
+ENSMUSG00000054065.Pkp3      1.888733e-01  0.6734884 0.336 0.421  1.000000e+00
+ENSMUSG00000031168.Ebp       2.472468e-01  0.7229016 0.240 0.289  1.000000e+00
+ENSMUSG00000091649.Phf11b    2.895996e-01  0.7114530 0.231 0.277  1.000000e+00
+ENSMUSG00000024387.Csnk2b    3.164949e-01  0.6696377 0.339 0.422  1.000000e+00
+ENSMUSG00000078974.Sec61g    6.476861e-01  0.7687057 0.272 0.302  1.000000e+00
+ENSMUSG00000060803.Gstp1     8.611352e-01  0.7413536 0.243 0.266  1.000000e+00
+ENSMUSG00000055170.Ifng      8.862302e-01  0.7542489 0.256 0.285  1.000000e+00
+ENSMUSG00000058216.Gstp3     9.551705e-01  0.7394364 0.285 0.325  1.000000e+00
+ENSMUSG00000038717.Atp5l     9.651564e-01  0.6076582 0.442 0.561  1.000000e+00</code></pre>
+<p>Main difference: more Itgb1, Ankrd11, Kmt2a and Tcf7 expression by
+cluster 5<br />
+more Gzma, Gzmb, Cd3g, Ccl5 and Ifitm1 expression by cluster 4</p>
+</div>
+<div id="annotation" class="section level2">
+<h2>annotation</h2>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$RNA_snn_res.0.6
+
+seurat$clusterlabel &lt;- &quot;-&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;0&quot;)] &lt;- &quot;Te CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;1&quot;)] &lt;- &quot;Trm CD8&quot; 
+seurat$clusterlabel[which(Idents(seurat)==&quot;2&quot;)] &lt;- &quot;Te CD4&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;3&quot;)] &lt;- &quot;Tem CD4&quot; 
+seurat$clusterlabel[which(Idents(seurat)==&quot;4&quot;)] &lt;- &quot;Tem CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;5&quot;)] &lt;- &quot;Tem CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;6&quot;)] &lt;- &quot;NK cells&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;7&quot;)] &lt;- &quot;Tcm CD4/CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;8&quot;)] &lt;- &quot;ISG Te CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;9&quot;)] &lt;- &quot;Te CD8 - S&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;10&quot;)] &lt;- &quot;Te CD8 - G1&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;11&quot;)] &lt;- &quot;Cx3cr1+ CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;12&quot;)] &lt;- &quot;ISG Trm CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;13&quot;)] &lt;- &quot;Trm CD8&quot; 
+seurat$clusterlabel[which(Idents(seurat)==&quot;14&quot;)] &lt;- &quot;Te CD8 - G2/M&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;15&quot;)] &lt;- &quot;Treg&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;16&quot;)] &lt;- &quot;γδT&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;17&quot;)] &lt;- &quot;ILC2&quot;
+
+seurat$clusterlabel &lt;- factor(seurat$clusterlabel, levels = c(&quot;Tcm CD4/CD8&quot;, &quot;Tem CD8&quot;, &quot;Trm CD8&quot;, &quot;ISG Trm CD8&quot;, &quot;Te CD8&quot;, &quot;Te CD8 - G1&quot;, &quot;Te CD8 - S&quot;, &quot;Te CD8 - G2/M&quot;, &quot;ISG Te CD8&quot;, &quot;Cx3cr1+ CD8&quot;, &quot;Te CD4&quot;, &quot;Tem CD4&quot;, &quot;Treg&quot;, &quot;NK cells&quot;, &quot;γδT&quot;, &quot;ILC2&quot;))
+
+Idents(seurat) &lt;- seurat$clusterlabel
+DimPlot(seurat, label = T)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/final%20T%20cell%20annotation-1.png" width="960" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>library(tidyverse)
+library(ggtext)
+library(glue)
+
+Idents(seurat) &lt;- seurat$clusterlabel
+
+genes &lt;- data.frame(gene = rownames(seurat)) %&gt;%
+  mutate(geneID = gsub(&quot;^.*\\.&quot;, &quot;&quot;, gene))
+
+selGenes &lt;- data.frame(geneID = c(&quot;Cd3e&quot;, &quot;Trac&quot;, &quot;Trbc2&quot;, &quot;Id2&quot;, &quot;Cd8a&quot;, &quot;Cd4&quot;, &quot;Il7r&quot;, &quot;Nkg7&quot;, &quot;Tcf7&quot;, &quot;Sell&quot;, &quot;Ccr7&quot;, &quot;Slamf6&quot;, &quot;S1pr1&quot;, &quot;Gzmk&quot;, &quot;Ly6a&quot;, &quot;Cxcr6&quot;, &quot;Cxcr3&quot;, &quot;Gzma&quot;, &quot;Gzmb&quot;, &quot;Itgae&quot;, &quot;Ifit1&quot;, &quot;Isg15&quot;, &quot;Cd28&quot;, &quot;Icos&quot;, &quot;Cd40lg&quot;, &quot;Tbx21&quot;, &quot;Klrg1&quot;, &quot;Mki67&quot;, &quot;Foxp3&quot;, &quot;Il2ra&quot;, &quot;Ncr1&quot;, &quot;Xcl1&quot;, &quot;Prf&quot;, &quot;Trgc1&quot;, &quot;Trdv4&quot;, &quot;Rorc&quot;, &quot;Gata3&quot;, &quot;Cx3cr1&quot;, &quot;Cd27&quot;, &quot;Tox&quot;, &quot;Pdcd1&quot;, &quot;Ctla4&quot;, &quot;Prf1&quot;, &quot;Il2&quot;, &quot;Mcm3&quot;, &quot;H3c3&quot;, &quot;Ccnb2&quot;))%&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)
+  
+DotPlot(seurat, assay = &quot;RNA&quot;, features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab(&quot;&quot;) + ylab(&quot;&quot;) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = &quot;italic&quot;))</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/dotplot%20T%20cell%20annotation-1.png" width="768" style="display: block; margin: auto;" /></p>
+</div>
+<div id="fusion-of-te-cd8-clusters" class="section level2">
+<h2>fusion of Te CD8 clusters</h2>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$clusterlabel
+seurat$clusterlabel[which(Idents(seurat)==&quot;Te CD8 - S&quot;)] &lt;- &quot;Te CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;Te CD8 - G1&quot;)] &lt;- &quot;Te CD8&quot;
+seurat$clusterlabel[which(Idents(seurat)==&quot;Te CD8 - G2/M&quot;)] &lt;- &quot;Te CD8&quot;
+
+seurat$clusterlabel &lt;- factor(seurat$clusterlabel, levels = c(&quot;NK cells&quot;, &quot;ILC2&quot;, &quot;γδT&quot;, &quot;Treg&quot;, &quot;Te CD4&quot;, &quot;Te CD8&quot;, &quot;ISG Te CD8&quot;, &quot;Tcm CD4/CD8&quot;, &quot;Tem CD4&quot;,  &quot;Tem CD8&quot;, &quot;Trm CD8&quot;, &quot;ISG Trm CD8&quot;, &quot;Cx3cr1+ CD8&quot;))
+
+levels(seurat)</code></pre>
+<pre><code> [1] &quot;Tcm CD4/CD8&quot;   &quot;Tem CD8&quot;       &quot;Trm CD8&quot;       &quot;ISG Trm CD8&quot;   &quot;Te CD8&quot;        &quot;Te CD8 - G1&quot;  
+ [7] &quot;Te CD8 - S&quot;    &quot;Te CD8 - G2/M&quot; &quot;ISG Te CD8&quot;    &quot;Cx3cr1+ CD8&quot;   &quot;Te CD4&quot;        &quot;Tem CD4&quot;      
+[13] &quot;Treg&quot;          &quot;NK cells&quot;      &quot;γδT&quot;           &quot;ILC2&quot;         </code></pre>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$clusterlabel
+
+genes &lt;- data.frame(gene = rownames(seurat)) %&gt;%
+  mutate(geneID = gsub(&quot;^.*\\.&quot;, &quot;&quot;, gene))
+
+selGenes &lt;- data.frame(geneID = c(&quot;Ncr1&quot;, &quot;Gata3&quot;, &quot;Trgc1&quot;, &quot;Cd3e&quot;, &quot;Cd8a&quot;, &quot;Cd4&quot;, &quot;Id2&quot;, &quot;Cxcr6&quot;, &quot;Il7r&quot;, &quot;Cxcr3&quot;, &quot;Gzma&quot;, &quot;Gzmb&quot;, &quot;Ifit1&quot;, &quot;Isg15&quot;, &quot;Cd28&quot;, &quot;Icos&quot;, &quot;Tcf7&quot;, &quot;Sell&quot;, &quot;Ccr7&quot;, &quot;Cd40lg&quot;, &quot;Itgae&quot;, &quot;Klrg1&quot;, &quot;Cx3cr1&quot;, &quot;Tbx21&quot;, &quot;Foxp3&quot;))%&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)
+
+DotPlot(seurat, assay = &quot;RNA&quot;, features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = &quot;italic&quot;)) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab(&quot;&quot;) + ylab(&quot;&quot;)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/dotplot%20T%20cell%20annotation%20final-1.png" width="576" style="display: block; margin: auto;" /></p>
+</div>
+<div id="final-umap-of-all-t-cells" class="section level2">
+<h2>final UMAP of all T cells</h2>
+<pre class="r"><code>library(pals)
+colcluster &lt;- c(tol()[c(1)],
+                #c(&quot;steelblue4&quot;),
+                tol()[c(2:7)],
+                c(&quot;sandybrown&quot;, &quot;sienna3&quot;), 
+                tol()[c(9,10,11,8)])
+                #, c(&quot;darkmagenta&quot;)) 
+                #&quot;darkorchid4&quot;))
+names(colcluster) &lt;-  c(&quot;NK cells&quot;, &quot;ILC2&quot;, &quot;γδT&quot;, &quot;Treg&quot;, &quot;Te CD4&quot;, &quot;Te CD8&quot;, &quot;ISG Te CD8&quot;, &quot;Tcm CD4/CD8&quot;, &quot;Tem CD4&quot;,  &quot;Tem CD8&quot;, &quot;Trm CD8&quot;, &quot;ISG Trm CD8&quot;, &quot;Cx3cr1+ CD8&quot;)
+pal.bands(colcluster)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/final%20UMAP%20T%20cells-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$clusterlabel
+DimPlot(seurat, reduction = &quot;umap&quot;, pt.size = 0.4, shuffle = T, cols = colcluster)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/final%20UMAP%20T%20cells-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>DimPlot(seurat, reduction = &quot;umap&quot;, pt.size = 0.4, shuffle = T, cols = colcluster, split.by = &quot;timepoint&quot;)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/final%20UMAP%20split%20by%20timepoint-1.png" width="1440" style="display: block; margin: auto;" /></p>
+</div>
+<div id="t-cell-phenotype-frequencies-per-timepoint"
+class="section level2">
+<h2>T cell phenotype frequencies per timepoint</h2>
+<pre class="r"><code>datList &lt;- NULL
+for(t in unique(seurat$timepoint)){
+  seuratSub &lt;- subset(seurat, timepoint==t)
+  print(dim(seuratSub))
+  dat_t &lt;- as.data.frame(table(seuratSub$clusterlabel)) %&gt;%
+  mutate(percent=Freq/ncol(seuratSub)) %&gt;% mutate(timepoint=t)
+  datList[[t]] &lt;- dat_t
+}</code></pre>
+<pre><code>[1] 30150  1426
+[1] 30150  9820
+[1] 30150 10729</code></pre>
+<pre class="r"><code>dat_all &lt;- do.call(&quot;rbind&quot;, datList)
+
+## plot abundance
+ggbarplot(dat_all, x= &quot;timepoint&quot;, palette = colcluster, y= &quot;percent&quot;, fill = &quot;Var1&quot;, legend = &quot;right&quot;, legend.titel = &quot;cluster&quot;, ylab = &quot;frequency&quot;)  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  # scale_x_discrete(limits=orddatasets)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/frequencies%20per%20timepoint-1.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="gene-expression-analysis" class="section level1">
+<h1>gene expression analysis</h1>
+<pre class="r"><code>genes &lt;- data.frame(gene = rownames(seurat)) %&gt;%
+  mutate(geneID = gsub(&quot;^.*\\.&quot;, &quot;&quot;, gene))
+
+selGenes &lt;- data.frame(geneID = c(&quot;Cxcr3&quot;, &quot;Ccr7&quot;, &quot;Cxcr6&quot;, &quot;Tbx21&quot;, &quot;Tcf7&quot;, &quot;Id2&quot;)) %&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(seurat, features = selGenes$gene[i], cols = c(&quot;grey&quot;, &quot;magenta3&quot;), pt.size = 1)+
+          theme_void() +
+          labs(title = selGenes$geneID[i]) +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25, face = &quot;italic&quot;)))
+}</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/Featureplots%20all%20T%20cells%20(Cxcr3%20Ccr7%20Cxcr6%20Tbx21%20Tcf7%20Id2)-1.png" width="528" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Featureplots%20all%20T%20cells%20(Cxcr3%20Ccr7%20Cxcr6%20Tbx21%20Tcf7%20Id2)-2.png" width="528" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Featureplots%20all%20T%20cells%20(Cxcr3%20Ccr7%20Cxcr6%20Tbx21%20Tcf7%20Id2)-3.png" width="528" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Featureplots%20all%20T%20cells%20(Cxcr3%20Ccr7%20Cxcr6%20Tbx21%20Tcf7%20Id2)-4.png" width="528" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Featureplots%20all%20T%20cells%20(Cxcr3%20Ccr7%20Cxcr6%20Tbx21%20Tcf7%20Id2)-5.png" width="528" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Featureplots%20all%20T%20cells%20(Cxcr3%20Ccr7%20Cxcr6%20Tbx21%20Tcf7%20Id2)-6.png" width="528" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>#genes %&gt;% filter(grepl(&quot;Tbx21&quot;, gene))</code></pre>
+<pre class="r"><code>Idents(seurat) &lt;- seurat$clusterlabel
+
+levels(seurat)</code></pre>
+<pre><code> [1] &quot;NK cells&quot;    &quot;ILC2&quot;        &quot;γδT&quot;         &quot;Treg&quot;        &quot;Te CD4&quot;      &quot;Te CD8&quot;     
+ [7] &quot;ISG Te CD8&quot;  &quot;Tcm CD4/CD8&quot; &quot;Tem CD4&quot;     &quot;Tem CD8&quot;     &quot;Trm CD8&quot;     &quot;ISG Trm CD8&quot;
+[13] &quot;Cx3cr1+ CD8&quot;</code></pre>
+<pre class="r"><code>genes &lt;- data.frame(gene = rownames(seurat)) %&gt;%
+  mutate(geneID = gsub(&quot;^.*\\.&quot;, &quot;&quot;, gene))
+
+selGenes &lt;- data.frame(geneID = c(&quot;Id2&quot;, &quot;Cxcr6&quot;, &quot;Cxcr3&quot;, &quot;Il7r&quot;, &quot;Tcf7&quot;, &quot;Ccr7&quot;, &quot;Tbx21&quot;))%&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)
+
+DotPlot(seurat, assay = &quot;RNA&quot;, features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = &quot;italic&quot;)) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab(&quot;&quot;) + ylab(&quot;&quot;)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/dotplot%20T%20cells%20to%20seperate%20Id2+%20and%20Tcf7+-1.png" width="576" style="display: block; margin: auto;" /></p>
+<div id="id2-vs-tcf-7" class="section level2">
+<h2>Id2 vs Tcf 7</h2>
+<pre class="r"><code>seurat_sub &lt;- subset(seurat, idents = c(&quot;γδT&quot;, &quot;Tem CD4&quot;, &quot;Tem CD8&quot;, &quot;Tcm CD4/CD8&quot;, &quot;Trm CD8&quot;, &quot;ISG Trm CD8&quot;, &quot;Te CD4&quot;, &quot;Te CD8&quot;, &quot;ISG Te CD8&quot;, &quot;Cx3cr1+ CD8&quot;))
+## left out NK cells and ILC2
+
+seurat_sub$newlabel &lt;- &quot;-&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Tem CD8&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Trm CD8&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;ISG Trm CD8&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Tem CD4&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Te CD4&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Te CD8&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;ISG Te CD8&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Cx3cr1+ CD8&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;γδT&quot;)] &lt;- &quot;Id2+&quot;
+seurat_sub$newlabel[which(Idents(seurat_sub)==&quot;Tcm CD4/CD8&quot;)] &lt;- &quot;Tcf7+&quot;
+
+Idents(seurat_sub) &lt;- seurat_sub$newlabel
+seurat_sub$newlabel &lt;- factor(seurat_sub$newlabel, levels = c(&quot;Tcf7+&quot;, &quot;Id2+&quot;)) 
+
+genes &lt;- data.frame(gene = rownames(seurat_sub)) %&gt;%
+  mutate(geneID = gsub(&quot;^.*\\.&quot;, &quot;&quot;, gene))
+
+selGenes &lt;- data.frame(geneID = c(&quot;Id2&quot;, &quot;Tbx21&quot;, &quot;Cxcr3&quot;, &quot;Cxcr6&quot;, &quot;Ccr5&quot;, &quot;Ccr2&quot;, &quot;Tcf7&quot;, &quot;Ccr7&quot;, &quot;Il7r&quot;))%&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)
+
+DotPlot(seurat_sub, assay = &quot;RNA&quot;, features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = &quot;italic&quot;)) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab(&quot;&quot;) + ylab(&quot;&quot;)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/Id2%20vs%20Tcf%207-1.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+<div id="frequencies-id-and-tcf7-t-cells-per-timepooint"
+class="section level2">
+<h2>frequencies Id+ and Tcf7+ T cells per timepooint</h2>
+<pre class="r"><code>colnewlabel &lt;- (brewer.pal(12, &quot;Set3&quot;)[c(1,3)])
+names(colnewlabel) &lt;- c(&quot;Tcf7+&quot;, &quot;Id2+&quot;)
+datList &lt;- NULL
+for(t in unique(seurat_sub$timepoint)){
+  seuratSub &lt;- subset(seurat_sub, timepoint==t)
+  print(dim(seuratSub))
+  dat_t &lt;- as.data.frame(table(seuratSub$newlabel)) %&gt;%
+  mutate(percent=Freq/ncol(seuratSub)) %&gt;% mutate(timepoint=t)
+  datList[[t]] &lt;- dat_t
+}</code></pre>
+<pre><code>[1] 30150   898
+[1] 30150  9613
+[1] 30150 10085</code></pre>
+<pre class="r"><code>dat_all &lt;- do.call(&quot;rbind&quot;, datList)
+
+## plot abundance
+ggbarplot(dat_all, x= &quot;timepoint&quot;, palette = colnewlabel, y= &quot;percent&quot;, fill = &quot;Var1&quot;, legend = &quot;right&quot;, legend.titel = &quot;cluster&quot;, ylab = &quot;frequency&quot;)  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  # scale_x_discrete(limits=orddatasets)</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/Frquencie%20Id+%20and%20Tcf7+%20T%20cells%20per%20timepoint-1.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+<div id="differences-between-tcf7-and-id2-cells" class="section level2">
+<h2>differences between Tcf7+ and Id2+ cells</h2>
+<pre class="r"><code>all.markers &lt;- FindAllMarkers(seurat_sub, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25, test.use = &quot;wilcox&quot;)
+all.markers %&gt;%
+  group_by(cluster) %&gt;%
+  top_n(n = 40, wt = avg_log2FC) -&gt; markers.top20
+markers.top20</code></pre>
+<pre><code># A tibble: 80 × 7
+# Groups:   cluster [2]
+       p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene                     
+       &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;                    
+ 1 0               3.46 0.858 0.178 0         Id2+    ENSMUSG00000048521.Cxcr6 
+ 2 0               3.92 0.942 0.287 0         Id2+    ENSMUSG00000001025.S100a6
+ 3 0               3.38 0.84  0.284 0         Id2+    ENSMUSG00000068220.Lgals1
+ 4 0               3.73 0.89  0.378 0         Id2+    ENSMUSG00000029322.Plac8 
+ 5 0               3.33 0.967 0.632 0         Id2+    ENSMUSG00000035042.Ccl5  
+ 6 6.45e-304       4.08 0.78  0.134 1.95e-299 Id2+    ENSMUSG00000001020.S100a4
+ 7 3.65e-279       4.20 0.718 0.064 1.10e-274 Id2+    ENSMUSG00000042385.Gzmk  
+ 8 6.60e-249       3.92 0.713 0.125 1.99e-244 Id2+    ENSMUSG00000026358.Rgs1  
+ 9 2.88e-233       3.20 0.703 0.119 8.68e-229 Id2+    ENSMUSG00000050232.Cxcr3 
+10 3.71e-223       4.95 0.649 0.09  1.12e-218 Id2+    ENSMUSG00000015437.Gzmb  
+# ℹ 70 more rows</code></pre>
+<pre class="r"><code>selGenes &lt;- data.frame(geneID = c(&quot;Cxcr3&quot;, &quot;Ccr7&quot;, &quot;Cxcr6&quot;, &quot;Tbx21&quot;, &quot;Tcf7&quot;, &quot;Id2&quot;)) %&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)
+
+Idents(seurat_sub) &lt;- seurat_sub$timepoint
+
+for (i in 1:length(selGenes$gene)){
+  print(VlnPlot(seurat_sub, features = selGenes$gene[i], pt.size = 0, split.by = &quot;timepoint&quot;, cols = coltimepoint)+
+          theme_classic() +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25, face = &quot;italic&quot;), legend.position = &quot;none&quot;)+ labs(x = &quot;&quot;))
+}</code></pre>
+<p><img src="figure/T_cell_annotation.Rmd/Violin%20plot%20on%20all%20T%20cells%20split%20by%20timepoint%20(Cxcr3,%20Ccr7,%20Cxcr6,%20Tbx21,%20Tcf7,%20Id2)-1.png" width="672" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Violin%20plot%20on%20all%20T%20cells%20split%20by%20timepoint%20(Cxcr3,%20Ccr7,%20Cxcr6,%20Tbx21,%20Tcf7,%20Id2)-2.png" width="672" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Violin%20plot%20on%20all%20T%20cells%20split%20by%20timepoint%20(Cxcr3,%20Ccr7,%20Cxcr6,%20Tbx21,%20Tcf7,%20Id2)-3.png" width="672" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Violin%20plot%20on%20all%20T%20cells%20split%20by%20timepoint%20(Cxcr3,%20Ccr7,%20Cxcr6,%20Tbx21,%20Tcf7,%20Id2)-4.png" width="672" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Violin%20plot%20on%20all%20T%20cells%20split%20by%20timepoint%20(Cxcr3,%20Ccr7,%20Cxcr6,%20Tbx21,%20Tcf7,%20Id2)-5.png" width="672" style="display: block; margin: auto;" /><img src="figure/T_cell_annotation.Rmd/Violin%20plot%20on%20all%20T%20cells%20split%20by%20timepoint%20(Cxcr3,%20Ccr7,%20Cxcr6,%20Tbx21,%20Tcf7,%20Id2)-6.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="save-file" class="section level1">
+<h1>save file</h1>
+<pre class="r"><code>saveRDS(seurat, file = paste0(basedir, &quot;/data/T_cells_annotated.rds&quot;))</code></pre>
+</div>
+<div id="sessioninfo" class="section level1">
+<h1>sessionInfo</h1>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.4.1 (2024-06-14)
+Platform: x86_64-apple-darwin20
+Running under: macOS Sonoma 14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.4-x86_64/Resources/lib/libRblas.0.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.4-x86_64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Berlin
+tzcode source: internal
+
+attached base packages:
+[1] grid      stats4    stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] pals_1.9                    glue_1.7.0                  ggtext_0.1.2               
+ [4] DOSE_3.30.2                 org.Mm.eg.db_3.19.1         AnnotationDbi_1.66.0       
+ [7] clusterProfiler_4.12.1      destiny_3.18.0              enrichplot_1.24.2          
+[10] ExploreSCdataSeurat3_0.1.0  ggpubr_0.6.0                muscat_1.18.0              
+[13] msigdbr_7.5.1               gridExtra_2.3               fgsea_1.30.0               
+[16] biomaRt_2.60.1              pheatmap_1.0.12             scran_1.32.0               
+[19] scater_1.32.1               scuttle_1.14.0              ggsci_3.2.0                
+[22] viridis_0.6.5               viridisLite_0.4.2           RColorBrewer_1.1-3         
+[25] SingleCellExperiment_1.26.0 SummarizedExperiment_1.34.0 Biobase_2.64.0             
+[28] GenomicRanges_1.56.1        GenomeInfoDb_1.40.1         IRanges_2.38.1             
+[31] S4Vectors_0.42.1            BiocGenerics_0.50.0         MatrixGenerics_1.16.0      
+[34] matrixStats_1.3.0           runSeurat3_0.1.0            here_1.0.1                 
+[37] magrittr_2.0.3              Seurat_5.1.0                SeuratObject_5.0.2         
+[40] sp_2.1-4                    lubridate_1.9.3             forcats_1.0.0              
+[43] stringr_1.5.1               dplyr_1.1.4                 purrr_1.0.2                
+[46] readr_2.1.5                 tidyr_1.3.1                 tibble_3.2.1               
+[49] ggplot2_3.5.1               tidyverse_2.0.0            
+
+loaded via a namespace (and not attached):
+  [1] igraph_2.0.3              ica_1.0-3                 plotly_4.10.4            
+  [4] maps_3.4.2                zlibbioc_1.50.0           tidyselect_1.2.1         
+  [7] bit_4.0.5                 doParallel_1.0.17         clue_0.3-65              
+ [10] lattice_0.22-6            rjson_0.2.21              blob_1.2.4               
+ [13] S4Arrays_1.4.1            dichromat_2.0-0.1         pbkrtest_0.5.3           
+ [16] parallel_4.4.1            png_0.1-8                 cli_3.6.3                
+ [19] ggplotify_0.1.2           goftest_1.2-3             VIM_6.2.2                
+ [22] variancePartition_1.34.0  bluster_1.14.0            BiocNeighbors_1.22.0     
+ [25] uwot_0.2.2                shadowtext_0.1.4          curl_5.2.1               
+ [28] mime_0.12                 evaluate_0.24.0           tidytree_0.4.6           
+ [31] leiden_0.4.3.1            ComplexHeatmap_2.20.0     stringi_1.8.4            
+ [34] backports_1.5.0           lmerTest_3.1-3            httpuv_1.6.15            
+ [37] rappdirs_0.3.3            splines_4.4.1             ggraph_2.2.1             
+ [40] sctransform_0.4.1         ggbeeswarm_0.7.2          DBI_1.2.3                
+ [43] smoother_1.3              jquerylib_0.1.4           withr_3.0.0              
+ [46] git2r_0.33.0              corpcor_1.6.10            class_7.3-22             
+ [49] rprojroot_2.0.4           lmtest_0.9-40             tidygraph_1.3.1          
+ [52] colourpicker_1.3.0        htmlwidgets_1.6.4         fs_1.6.4                 
+ [55] ggrepel_0.9.5             labeling_0.4.3            fANCOVA_0.6-1            
+ [58] SparseArray_1.4.8         ranger_0.16.0             DESeq2_1.44.0            
+ [61] DEoptimR_1.1-3            reticulate_1.38.0         hexbin_1.28.3            
+ [64] zoo_1.8-12                XVector_0.44.0            knitr_1.48               
+ [67] ggplot.multistats_1.0.0   UCSC.utils_1.0.0          RhpcBLASctl_0.23-42      
+ [70] timechange_0.3.0          foreach_1.5.2             fansi_1.0.6              
+ [73] patchwork_1.2.0           caTools_1.18.2            data.table_1.15.4        
+ [76] ggtree_3.12.0             RSpectra_0.16-2           irlba_2.3.5.1            
+ [79] ggrastr_1.0.2             fastDummies_1.7.3         gridGraphics_0.5-1       
+ [82] lazyeval_0.2.2            yaml_2.3.9                survival_3.7-0           
+ [85] scattermore_1.2           crayon_1.5.3              RcppAnnoy_0.0.22         
+ [88] mapproj_1.2.11            progressr_0.14.0          tweenr_2.0.3             
+ [91] later_1.3.2               ggridges_0.5.6            codetools_0.2-20         
+ [94] GlobalOptions_0.1.2       aod_1.3.3                 KEGGREST_1.44.1          
+ [97] Rtsne_0.17                shape_1.4.6.1             limma_3.60.4             
+[100] estimability_1.5.1        filelock_1.0.3            pkgconfig_2.0.3          
+[103] xml2_1.3.6                TMB_1.9.14                spatstat.univar_3.0-0    
+[106] EnvStats_2.8.1            scatterplot3d_0.3-44      aplot_0.2.3              
+[109] spatstat.sparse_3.1-0     ape_5.8                   xtable_1.8-4             
+[112] highr_0.11                car_3.1-2                 plyr_1.8.9               
+[115] httr_1.4.7                rbibutils_2.2.16          tools_4.4.1              
+[118] globals_0.16.3            beeswarm_0.4.0            broom_1.0.6              
+[121] nlme_3.1-165              HDO.db_0.99.1             dbplyr_2.5.0             
+[124] lme4_1.1-35.5             digest_0.6.36             numDeriv_2016.8-1.1      
+[127] Matrix_1.7-0              farver_2.1.2              tzdb_0.4.0               
+[130] remaCor_0.0.18            reshape2_1.4.4            yulab.utils_0.1.5        
+[133] cachem_1.1.0              BiocFileCache_2.12.0      polyclip_1.10-7          
+[136] generics_0.1.3            Biostrings_2.72.1         mvtnorm_1.2-5            
+[139] presto_1.0.0              parallelly_1.37.1         statmod_1.5.0            
+[142] RcppHNSW_0.6.0            ScaledMatrix_1.12.0       carData_3.0-5            
+[145] minqa_1.2.7               pbapply_1.7-2             httr2_1.0.2              
+[148] spam_2.10-0               gson_0.1.0                dqrng_0.4.1              
+[151] utf8_1.2.4                graphlayouts_1.1.1        gtools_3.9.5             
+[154] ggsignif_0.6.4            RcppEigen_0.3.4.0.0       shiny_1.8.1.1            
+[157] GenomeInfoDbData_1.2.12   glmmTMB_1.1.9             memoise_2.0.1            
+[160] rmarkdown_2.27            scales_1.3.0              future_1.33.2            
+[163] RANN_2.6.1                Cairo_1.6-2               spatstat.data_3.1-2      
+[166] rstudioapi_0.16.0         cluster_2.1.6             spatstat.utils_3.0-5     
+[169] hms_1.1.3                 fitdistrplus_1.2-1        munsell_0.5.1            
+[172] cowplot_1.1.3             colorspace_2.1-0          rlang_1.1.4              
+[175] xts_0.14.0                DelayedMatrixStats_1.26.0 sparseMatrixStats_1.16.0 
+[178] dotCall64_1.1-1           shinydashboard_0.7.2      ggforce_0.4.2            
+[181] circlize_0.4.16           laeken_0.5.3              mgcv_1.9-1               
+[184] xfun_0.46                 coda_0.19-4.1             e1071_1.7-14             
+[187] TH.data_1.1-2             iterators_1.0.14          emmeans_1.10.3           
+[190] abind_1.4-5               GOSemSim_2.30.0           treeio_1.28.0            
+[193] bitops_1.0-7              Rdpack_2.6                promises_1.3.0           
+[196] scatterpie_0.2.3          RSQLite_2.3.7             qvalue_2.36.0            
+[199] sandwich_3.1-0            DelayedArray_0.30.1       proxy_0.4-27             
+[202] GO.db_3.19.1              compiler_4.4.1            prettyunits_1.2.0        
+[205] boot_1.3-30               beachmat_2.20.0           listenv_0.9.1            
+[208] Rcpp_1.0.13               edgeR_4.2.1               workflowr_1.7.1          
+[211] BiocSingular_1.20.0       tensor_1.5                MASS_7.3-61              
+[214] progress_1.2.3            gridtext_0.1.5            BiocParallel_1.38.0      
+[217] babelgene_22.9            spatstat.random_3.3-1     R6_2.5.1                 
+[220] fastmap_1.2.0             multcomp_1.4-26           fastmatch_1.1-4          
+[223] rstatix_0.7.2             TTR_0.24.4                vipor_0.4.7              
+[226] ROCR_1.0-11               vcd_1.4-12                rsvd_1.0.5               
+[229] nnet_7.3-19               gtable_0.3.5              KernSmooth_2.23-24       
+[232] miniUI_0.1.1.1            deldir_2.0-4              ggthemes_5.1.0           
+[235] htmltools_0.5.8.1         bit64_4.0.5               spatstat.explore_3.3-1   
+[238] lifecycle_1.0.4           blme_1.0-5                nloptr_2.1.1             
+[241] sass_0.4.9                vctrs_0.6.5               spatstat.geom_3.3-2      
+[244] robustbase_0.99-3         ggfun_0.1.5               future.apply_1.11.2      
+[247] bslib_0.7.0               pillar_1.9.0              pcaMethods_1.96.0        
+[250] gplots_3.1.3.1            metapod_1.12.0            locfit_1.5-9.10          
+[253] jsonlite_1.8.8            GetoptLong_1.0.5         </code></pre>
+<pre class="r"><code>date()</code></pre>
+<pre><code>[1] &quot;Fri Aug  9 15:02:20 2024&quot;</code></pre>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span>
+Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.4.1 (2024-06-14)
+Platform: x86_64-apple-darwin20
+Running under: macOS Sonoma 14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.4-x86_64/Resources/lib/libRblas.0.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.4-x86_64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Berlin
+tzcode source: internal
+
+attached base packages:
+[1] grid      stats4    stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] pals_1.9                    glue_1.7.0                  ggtext_0.1.2               
+ [4] DOSE_3.30.2                 org.Mm.eg.db_3.19.1         AnnotationDbi_1.66.0       
+ [7] clusterProfiler_4.12.1      destiny_3.18.0              enrichplot_1.24.2          
+[10] ExploreSCdataSeurat3_0.1.0  ggpubr_0.6.0                muscat_1.18.0              
+[13] msigdbr_7.5.1               gridExtra_2.3               fgsea_1.30.0               
+[16] biomaRt_2.60.1              pheatmap_1.0.12             scran_1.32.0               
+[19] scater_1.32.1               scuttle_1.14.0              ggsci_3.2.0                
+[22] viridis_0.6.5               viridisLite_0.4.2           RColorBrewer_1.1-3         
+[25] SingleCellExperiment_1.26.0 SummarizedExperiment_1.34.0 Biobase_2.64.0             
+[28] GenomicRanges_1.56.1        GenomeInfoDb_1.40.1         IRanges_2.38.1             
+[31] S4Vectors_0.42.1            BiocGenerics_0.50.0         MatrixGenerics_1.16.0      
+[34] matrixStats_1.3.0           runSeurat3_0.1.0            here_1.0.1                 
+[37] magrittr_2.0.3              Seurat_5.1.0                SeuratObject_5.0.2         
+[40] sp_2.1-4                    lubridate_1.9.3             forcats_1.0.0              
+[43] stringr_1.5.1               dplyr_1.1.4                 purrr_1.0.2                
+[46] readr_2.1.5                 tidyr_1.3.1                 tibble_3.2.1               
+[49] ggplot2_3.5.1               tidyverse_2.0.0            
+
+loaded via a namespace (and not attached):
+  [1] igraph_2.0.3              ica_1.0-3                 plotly_4.10.4            
+  [4] maps_3.4.2                zlibbioc_1.50.0           tidyselect_1.2.1         
+  [7] bit_4.0.5                 doParallel_1.0.17         clue_0.3-65              
+ [10] lattice_0.22-6            rjson_0.2.21              blob_1.2.4               
+ [13] S4Arrays_1.4.1            dichromat_2.0-0.1         pbkrtest_0.5.3           
+ [16] parallel_4.4.1            png_0.1-8                 cli_3.6.3                
+ [19] ggplotify_0.1.2           goftest_1.2-3             VIM_6.2.2                
+ [22] variancePartition_1.34.0  bluster_1.14.0            BiocNeighbors_1.22.0     
+ [25] uwot_0.2.2                shadowtext_0.1.4          curl_5.2.1               
+ [28] mime_0.12                 evaluate_0.24.0           tidytree_0.4.6           
+ [31] leiden_0.4.3.1            ComplexHeatmap_2.20.0     stringi_1.8.4            
+ [34] backports_1.5.0           lmerTest_3.1-3            httpuv_1.6.15            
+ [37] rappdirs_0.3.3            splines_4.4.1             ggraph_2.2.1             
+ [40] sctransform_0.4.1         ggbeeswarm_0.7.2          DBI_1.2.3                
+ [43] smoother_1.3              jquerylib_0.1.4           withr_3.0.0              
+ [46] git2r_0.33.0              corpcor_1.6.10            class_7.3-22             
+ [49] rprojroot_2.0.4           lmtest_0.9-40             tidygraph_1.3.1          
+ [52] colourpicker_1.3.0        htmlwidgets_1.6.4         fs_1.6.4                 
+ [55] ggrepel_0.9.5             labeling_0.4.3            fANCOVA_0.6-1            
+ [58] SparseArray_1.4.8         ranger_0.16.0             DESeq2_1.44.0            
+ [61] DEoptimR_1.1-3            reticulate_1.38.0         hexbin_1.28.3            
+ [64] zoo_1.8-12                XVector_0.44.0            knitr_1.48               
+ [67] ggplot.multistats_1.0.0   UCSC.utils_1.0.0          RhpcBLASctl_0.23-42      
+ [70] timechange_0.3.0          foreach_1.5.2             fansi_1.0.6              
+ [73] patchwork_1.2.0           caTools_1.18.2            data.table_1.15.4        
+ [76] ggtree_3.12.0             RSpectra_0.16-2           irlba_2.3.5.1            
+ [79] ggrastr_1.0.2             fastDummies_1.7.3         gridGraphics_0.5-1       
+ [82] lazyeval_0.2.2            yaml_2.3.9                survival_3.7-0           
+ [85] scattermore_1.2           crayon_1.5.3              RcppAnnoy_0.0.22         
+ [88] mapproj_1.2.11            progressr_0.14.0          tweenr_2.0.3             
+ [91] later_1.3.2               ggridges_0.5.6            codetools_0.2-20         
+ [94] GlobalOptions_0.1.2       aod_1.3.3                 KEGGREST_1.44.1          
+ [97] Rtsne_0.17                shape_1.4.6.1             limma_3.60.4             
+[100] estimability_1.5.1        filelock_1.0.3            pkgconfig_2.0.3          
+[103] xml2_1.3.6                TMB_1.9.14                spatstat.univar_3.0-0    
+[106] EnvStats_2.8.1            scatterplot3d_0.3-44      aplot_0.2.3              
+[109] spatstat.sparse_3.1-0     ape_5.8                   xtable_1.8-4             
+[112] highr_0.11                car_3.1-2                 plyr_1.8.9               
+[115] httr_1.4.7                rbibutils_2.2.16          tools_4.4.1              
+[118] globals_0.16.3            beeswarm_0.4.0            broom_1.0.6              
+[121] nlme_3.1-165              HDO.db_0.99.1             dbplyr_2.5.0             
+[124] lme4_1.1-35.5             digest_0.6.36             numDeriv_2016.8-1.1      
+[127] Matrix_1.7-0              farver_2.1.2              tzdb_0.4.0               
+[130] remaCor_0.0.18            reshape2_1.4.4            yulab.utils_0.1.5        
+[133] cachem_1.1.0              BiocFileCache_2.12.0      polyclip_1.10-7          
+[136] generics_0.1.3            Biostrings_2.72.1         mvtnorm_1.2-5            
+[139] presto_1.0.0              parallelly_1.37.1         statmod_1.5.0            
+[142] RcppHNSW_0.6.0            ScaledMatrix_1.12.0       carData_3.0-5            
+[145] minqa_1.2.7               pbapply_1.7-2             httr2_1.0.2              
+[148] spam_2.10-0               gson_0.1.0                dqrng_0.4.1              
+[151] utf8_1.2.4                graphlayouts_1.1.1        gtools_3.9.5             
+[154] ggsignif_0.6.4            RcppEigen_0.3.4.0.0       shiny_1.8.1.1            
+[157] GenomeInfoDbData_1.2.12   glmmTMB_1.1.9             memoise_2.0.1            
+[160] rmarkdown_2.27            scales_1.3.0              future_1.33.2            
+[163] RANN_2.6.1                Cairo_1.6-2               spatstat.data_3.1-2      
+[166] rstudioapi_0.16.0         cluster_2.1.6             spatstat.utils_3.0-5     
+[169] hms_1.1.3                 fitdistrplus_1.2-1        munsell_0.5.1            
+[172] cowplot_1.1.3             colorspace_2.1-0          rlang_1.1.4              
+[175] xts_0.14.0                DelayedMatrixStats_1.26.0 sparseMatrixStats_1.16.0 
+[178] dotCall64_1.1-1           shinydashboard_0.7.2      ggforce_0.4.2            
+[181] circlize_0.4.16           laeken_0.5.3              mgcv_1.9-1               
+[184] xfun_0.46                 coda_0.19-4.1             e1071_1.7-14             
+[187] TH.data_1.1-2             iterators_1.0.14          emmeans_1.10.3           
+[190] abind_1.4-5               GOSemSim_2.30.0           treeio_1.28.0            
+[193] bitops_1.0-7              Rdpack_2.6                promises_1.3.0           
+[196] scatterpie_0.2.3          RSQLite_2.3.7             qvalue_2.36.0            
+[199] sandwich_3.1-0            DelayedArray_0.30.1       proxy_0.4-27             
+[202] GO.db_3.19.1              compiler_4.4.1            prettyunits_1.2.0        
+[205] boot_1.3-30               beachmat_2.20.0           listenv_0.9.1            
+[208] Rcpp_1.0.13               edgeR_4.2.1               workflowr_1.7.1          
+[211] BiocSingular_1.20.0       tensor_1.5                MASS_7.3-61              
+[214] progress_1.2.3            gridtext_0.1.5            BiocParallel_1.38.0      
+[217] babelgene_22.9            spatstat.random_3.3-1     R6_2.5.1                 
+[220] fastmap_1.2.0             multcomp_1.4-26           fastmatch_1.1-4          
+[223] rstatix_0.7.2             TTR_0.24.4                vipor_0.4.7              
+[226] ROCR_1.0-11               vcd_1.4-12                rsvd_1.0.5               
+[229] nnet_7.3-19               gtable_0.3.5              KernSmooth_2.23-24       
+[232] miniUI_0.1.1.1            deldir_2.0-4              ggthemes_5.1.0           
+[235] htmltools_0.5.8.1         bit64_4.0.5               spatstat.explore_3.3-1   
+[238] lifecycle_1.0.4           blme_1.0-5                nloptr_2.1.1             
+[241] sass_0.4.9                vctrs_0.6.5               spatstat.geom_3.3-2      
+[244] robustbase_0.99-3         ggfun_0.1.5               future.apply_1.11.2      
+[247] bslib_0.7.0               pillar_1.9.0              pcaMethods_1.96.0        
+[250] gplots_3.1.3.1            metapod_1.12.0            locfit_1.5-9.10          
+[253] jsonlite_1.8.8            GetoptLong_1.0.5         </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+https://docs.mathjax.org/en/latest/web/configuration.html. This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,230 @@
+---
+title: "cluster annotation and subsetting of T cells and fibroblasts"
+date: "2024-07-25"
+output:
+html_document:
+    self_contained: no
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    collapsed: no
+    smooth_scroll: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r include=FALSE}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+# load packages
+
+```{r load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(dplyr)
+  library(purrr)
+  library(ggplot2)
+  library(here)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(devtools)
+  library(ExploreSCdataSeurat3)
+  library(patchwork)
+  library(ggpubr)
+  })
+```
+
+# load file
+
+```{r load file}
+basedir <- here()
+seurat <- readRDS(paste0(basedir, "/data/merged_samples_CNS.rds"))
+
+Idents(seurat) <- seurat$RNA_snn_res.0.25
+DimPlot(seurat, reduction = "umap", label = T)
+```
+
+# calculate marker genes
+
+```{r marker genes}
+Idents(seurat) <- seurat$RNA_snn_res.0.25
+
+all.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox")
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 30, wt = avg_log2FC) -> markers.top30
+markers.top30
+
+#write.table(all.markers, file = paste0(basedir, "/data/markergenes_res0.25_merged_samples_CNS.txt", 
+#            row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+```
+
+# cluster annotation
+
+```{r cluster annoation, fig.height=10, fig.width=15}
+Idents(seurat) <- seurat$RNA_snn_res.0.25
+
+seurat$clusterlabel <- "NA"
+seurat$clusterlabel[which(Idents(seurat)=="0")] <- "Microglia"
+seurat$clusterlabel[which(Idents(seurat)=="1")] <- "Endothelial cells 1"
+seurat$clusterlabel[which(Idents(seurat)=="2")] <- "T cells 1"
+seurat$clusterlabel[which(Idents(seurat)=="3")] <- "T cells 2"
+seurat$clusterlabel[which(Idents(seurat)=="4")] <- "B cells 1"
+seurat$clusterlabel[which(Idents(seurat)=="5")] <- "Monocytes/Macrophages"
+seurat$clusterlabel[which(Idents(seurat)=="6")] <- "Double positive (B&T cells)"
+seurat$clusterlabel[which(Idents(seurat)=="7")] <- "Fibroblasts 1"
+seurat$clusterlabel[which(Idents(seurat)=="8")] <- "Fibroblasts 2"
+seurat$clusterlabel[which(Idents(seurat)=="9")] <- "Fibroblasts 3"
+seurat$clusterlabel[which(Idents(seurat)=="10")] <- "Macrophages"
+seurat$clusterlabel[which(Idents(seurat)=="11")] <- "T cells 3"
+seurat$clusterlabel[which(Idents(seurat)=="12")] <- "Neutrophils"
+seurat$clusterlabel[which(Idents(seurat)=="13")] <- "Monocytes"
+seurat$clusterlabel[which(Idents(seurat)=="14")] <- "Oligodendrocytes"
+seurat$clusterlabel[which(Idents(seurat)=="15")] <- "Astrocytes/Neurons"
+seurat$clusterlabel[which(Idents(seurat)=="16")] <- "Fibroblasts 4"
+seurat$clusterlabel[which(Idents(seurat)=="17")] <- "Endothelial cells 2"
+seurat$clusterlabel[which(Idents(seurat)=="18")] <- "Fibroblasts 5"
+seurat$clusterlabel[which(Idents(seurat)=="19")] <- "Proliferating B cells"
+seurat$clusterlabel[which(Idents(seurat)=="20")] <- "Neurons 1"
+seurat$clusterlabel[which(Idents(seurat)=="21")] <- "Endothelial cells 3"
+seurat$clusterlabel[which(Idents(seurat)=="22")] <- "B cells 2"
+seurat$clusterlabel[which(Idents(seurat)=="23")] <- "Neurons 2"
+
+seurat$clusterlabel <- factor(seurat$clusterlabel, levels = c("Oligodendrocytes", "Microglia", "Astrocytes/Neurons", "Neurons 1", "Neurons 2", "Monocytes/Macrophages", "Macrophages", "Monocytes", "Neutrophils", "T cells 1", "T cells 2", "T cells 3", "Double positive (B&T cells)", "B cells 1", "B cells 2", "Proliferating B cells", "Endothelial cells 1", "Endothelial cells 2", "Endothelial cells 3", "Fibroblasts 1", "Fibroblasts 2", "Fibroblasts 3", "Fibroblasts 4", "Fibroblasts 5"))
+table(seurat$clusterlabel, seurat$timepoint)
+Idents(seurat) <- seurat$clusterlabel
+DimPlot(seurat, label = T)
+```
+
+``` {r dot plot, fig.height=20, fig.width=20}
+### dot plot of genes for marker genes
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID =c("Gzma", "Gzmb", "Cd8a", "Cd3e","Cx3cr1", "C1qa", "Tmem119", "Aif1", "Siglech", "Tcf4", "Icos", "Cd28", "Cd4", "Cd19", "Jchain", "Ly6a", "Ly6c2", "Cd74", "Igkc", "Iglc2", "Ighm", "Cd24a", "Lmo4", "Ms4a1", "Spib", "Pax5", "Bach2", "Tnfrsf13c", "Ighd", "H2-Aa", "H2-Eb1", "Bank1", "Tnfrsf13b", "Cldn5", "Bsg", "Cxcl12", "Pecam1", "Lyz2", "Lgals3", "Ccr2", "Ifi207", "Cd68", "Cxcl16", "Cd14", "Dcn", "Vcam1", "Col1a1", "Lum", "Pdgfra", "Bgn", "Rgs5", "Pdgfrb", "Ccl19", "Myl9", "Notch3", "Tagln", "Ncf1", "Top2a", "Mki67", "Tuba1b", "Plp1", "S100b", "Cldn11", "Ncr1", "Klra4", "Acta2", "Myh11", "Des", "Mcam", "Ly6g", "Il1b", "Pdpn", "Vpreb1", "Rag1","Ccl2","S100a8", "Plvap", "Plpp3", "Kcnj8")) %>%
+  left_join(., genes, by = "geneID")
+
+Idents(seurat) <- seurat$clusterlabel
+DotPlot(seurat, assay = "RNA", features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab("") + ylab("")
+
+```
+
+# check double positive cluster for gene counts
+
+```{r gene count check of double pos cluster 6, fig.height=4, fig.width=10}
+meta_data <- seurat@meta.data
+meta_data <- meta_data %>%
+        dplyr::rename(nUMI = nCount_RNA,
+                      nGene = nFeature_RNA)
+
+# visualize the number UMIs/transcripts per cell
+meta_data %>% 
+  	ggplot(aes(color= clusterlabel, x=nUMI, fill= clusterlabel)) + 
+  	geom_density(alpha = 0.2) + 
+    #scale_fill_manual(values = "hotpink") + 
+    #scale_color_manual(values = "hotpink") +
+  	scale_x_log10() + 
+  	theme_classic() +
+  	ylab("Cell density") +
+  	geom_vline(xintercept = 500)
+
+# visualize the distribution of genes detected per cell via histogram
+meta_data %>% 
+  	ggplot(aes(color=clusterlabel, x=nGene, fill= clusterlabel)) + 
+  	geom_density(alpha = 0.2) + 
+    #scale_fill_manual(values = coldataset) + 
+    #scale_color_manual(values = coldataset) +
+  	theme_classic() +
+  	scale_x_log10() + 
+  	geom_vline(xintercept = 300)
+
+seurat_sub <- subset(seurat, clusterlabel == "Double positive (B&T cells)")
+seurat_sub$out <- "no"
+seurat_sub$out[which(seurat_sub$detected<1000)] <- "yes"
+table(seurat_sub$out)
+
+## cluster 6 (double positive) not included for further T cell analysis as more than 70% low gene counts and double positive
+```
+
+# subset T cells
+
+```{r subset T cells}
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+selGenes <- data.frame(geneID = c("Cd3e", "Cd4", "Cd8a", "Ptprc")) %>%
+  left_join(., genes, by = "geneID")
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(seurat, features = selGenes$gene[i], cols = c("grey", "red"), pt.size = 1)+
+          theme_void() +
+          labs(title = selGenes$geneID[i]) +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25)))
+}
+
+Idents(seurat) <- seurat$clusterlabel
+Tcells <- subset(seurat, idents = c("T cells 1", "T cells 2", "T cells 3"))
+table(Tcells$timepoint)
+saveRDS(Tcells, file = paste0(basedir, "/data/Tcells.rds"))
+```
+
+# subset fibroblasts
+
+```{r subset fibroblasts}
+selGenes <- data.frame(geneID = c("Pdgfrb", "Rgs5", "Acta2", "Kcnj8", "Col1a1")) %>%
+  left_join(., genes, by = "geneID")
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(seurat, features = selGenes$gene[i], cols = c("grey", "red"), pt.size = 1)+
+          theme_void() +
+          labs(title = selGenes$geneID[i]) +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25)))
+}
+
+Idents(seurat) <- seurat$clusterlabel
+fibroblasts <- subset(seurat, idents = c("Fibroblasts 1", "Fibroblasts 2", "Fibroblasts 3", "Fibroblasts 4", "Fibroblasts 5"))
+table(fibroblasts$timepoint)
+saveRDS(fibroblasts, file = paste0(basedir, "/data/fibroblasts.rds"))
+```
+
+# subset endothelial cells
+
+```{r subset endothelial cells}
+selGenes <- data.frame(geneID = c("Pecam1", "Vwf")) %>%
+  left_join(., genes, by = "geneID")
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(seurat, features = selGenes$gene[i], cols = c("grey", "red"), pt.size = 1)+
+          theme_void() +
+          labs(title = selGenes$geneID[i]) +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25)))
+}
+
+Idents(seurat) <- seurat$clusterlabel
+fibroblasts <- subset(seurat, idents = c("Endothelial cells 1", "Endothelial cells 2", "Endothelial cells 3"))
+table(fibroblasts$timepoint)
+saveRDS(fibroblasts, file = paste0(basedir, "/data/endothelial_cells.rds"))
+```
+
+# sessionInfo
+
+```{r sessionInfo}
+sessionInfo()
+date()
+```
+

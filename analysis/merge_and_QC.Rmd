@@ -1,0 +1,246 @@
+---
+title: "merge and quality control"
+date: "2024-04-09"
+output:
+  html_document:
+    self_contained: no
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    collapsed: no
+    smooth_scroll: yes
+---
+```{r include=FALSE}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+# load packages
+
+```{r load packages}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(here)
+  library(ggplot2)
+  library(ggrepel)
+  library(RColorBrewer)
+  library(magrittr)
+  library(dplyr)
+  })
+```
+
+# load files
+
+```{r load file and merge timepoints}
+basedir <- here()
+
+mergeSObj <- function(datasets){
+  a <- readRDS(file = paste0(basedir, "/data/", datasets[1], "_seurat.rds"))
+  print(datasets[1])
+  for (i in 2:(length(datasets))){
+    b <- readRDS(file = paste0(basedir, "/data/", datasets[i], "_seurat.rds"))
+    print(datasets[i])
+    a <- merge(a,b)
+  }
+  print("merged")
+  return(a)
+}
+
+#naive
+datasets_d0 <- c("316781_01-1_20230323_Mu_B6_CNS_Naive_Stroma_1", 
+                  "316781_02-2_20230323_Mu_B6_CNS_Naive_Stroma_2", 
+                  "316781_04-4_20230323_Mu_B6_CNS_Naive_glia_Macs", 
+                  "316781_03-3_20230323_Mu_B6_CNS_Naive_Lym_glia_Macs", 
+                  "340821_24-1_20231214_Mu_Ccl19_CNS_Stroma_Naive")
+seurat_d0 <- mergeSObj(datasets_d0)
+
+#d8
+datasets_d8 <- c("354851_3-3_20240606_Mu_Stroma_CNS_MHV_d8", 
+                  "354851_4-4_20240606_Mu_CD3_CNS_MHV_d8", 
+                  "354851_5-5_20240606_Mu_CD11b_CNS_MHV_d8")
+seurat_d8 <- mergeSObj(datasets_d8)
+
+#d20
+datasets_d20 <- c("312581_08-8_20230309_Mu_CCL19cre_CNS_D20_Stroma",
+                   "o310951_04-4_20230228_Mu_CCL19cre_CNS_D20_Stroma", 
+                   "o310951_05-5_20230228_Mu_CCL19cre_CNS_D20_CD45posCD11bneg_1", 
+                   "o310951_06-6_20230228_Mu_CCL19cre_CNS_D20_CD45posCD11bneg_2", 
+                   "o310951_07-7_20230228_Mu_CCL19cre_CNS_D20_CD45posMicroglMacs", 
+                   "344261_14-14_20240221_Mu_Ccl19_CNS_Stroma_MHV_d20")
+seurat_d20 <- mergeSObj(datasets_d20)
+``` 
+
+# merge files
+
+```{r add timepoint labeles and merge to one dataset}
+seurat_d0$timepoint <- "d0"
+seurat_d8$timepoint <- "d8"
+seurat_d20$timepoint <- "d20"
+
+seurat <- merge(seurat_d0, y= c(seurat_d8, seurat_d20))
+seurat$timepoint <- factor(seurat$timepoint, levels = c("d0", "d8", "d20"))
+
+table(seurat$dataset, seurat$timepoint)
+
+rm(seurat_d20)
+rm(seurat_d0)
+rm(seurat_d8)
+```
+
+# quality control
+
+## cell count dataset
+
+```{r cell count dataset, fig.height=10, fig.width=14}
+coldataset <- c((brewer.pal(11, "PiYG")[c(11,10,9,8,7,2,3,4)]),
+                (brewer.pal(11, "PRGn")[c(1,2,3,4,5,6)]))
+names(coldataset) <- c(datasets_d0, datasets_d8, datasets_d20)
+seurat$dataset <- factor(seurat$dataset, levels = c(datasets_d0, datasets_d8, datasets_d20))
+
+cell_count <- data.frame(table(seurat$dataset))
+colnames(cell_count) <- c("dataset", "count")
+hsize <- 1.5
+
+ggplot(cell_count, aes(x = hsize, y = count, fill = dataset)) +
+  scale_fill_manual(values = coldataset) +
+  geom_col(color = "white") +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() +
+  ggtitle("dataset_count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15)) +
+  geom_text(aes(label = count), position = position_stack(vjust = 0.5))
+
+```
+
+## cell count timepoint
+
+```{r cell count timepoint, fig.height=4, fig.width=4}
+coltimepoint <- c((brewer.pal(11, "PiYG")[c(9,3)]),
+                (brewer.pal(11, "PRGn")[c(3)]))
+names(coltimepoint) <- unique(seurat$timepoint)
+
+cell_count <- data.frame(table(seurat$timepoint))
+colnames(cell_count) <- c("timepoint", "count")
+hsize <- 1.5
+
+ggplot(cell_count, aes(x = hsize, y = count, fill = timepoint)) +
+  scale_fill_manual(values = coltimepoint) +
+  geom_col(color = "white") +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() +
+  ggtitle("timepoint_count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15), legend.position = "bottom") +
+  geom_text(aes(label = count), position = position_stack(vjust = 0.5))
+```
+
+## nUMIs
+
+```{r UMIs (transcripts) per cell, fig.height=4, fig.width=10}
+seurat$log10GenesPerUMI <- log10(seurat$nFeature_RNA)/log10(seurat$nCount_RNA)
+meta_data <- seurat@meta.data
+meta_data <- meta_data %>%
+        dplyr::rename(nUMI = nCount_RNA,
+                      nGene = nFeature_RNA)
+
+# Visualize the number UMIs/transcripts per cell
+meta_data %>% 
+  	ggplot(aes(color= dataset, x=nUMI, fill= dataset)) + 
+  	geom_density(alpha = 0.2) + 
+    scale_fill_manual(values = coldataset) + 
+    scale_color_manual(values = coldataset) +
+  	scale_x_log10() + 
+  	theme_classic() +
+  	ylab("Cell density") +
+  	geom_vline(xintercept = 500)
+```
+
+## nGenes
+
+```{r genes detected per cell, fig.height=4, fig.width=10}
+# Visualize the distribution of genes detected per cell via histogram
+meta_data %>% 
+  	ggplot(aes(color=dataset, x=nGene, fill= dataset)) + 
+  	geom_density(alpha = 0.2) + 
+    scale_fill_manual(values = coldataset) + 
+    scale_color_manual(values = coldataset) +
+  	theme_classic() +
+  	scale_x_log10() + 
+  	geom_vline(xintercept = 300)
+```
+
+## complexity
+
+```{r complexity, fig.height=4, fig.width=10}
+# Visualize the overall complexity of the gene expression by visualizing the genes detected per UMI (novelty score)
+meta_data %>%
+  	ggplot(aes(x=log10GenesPerUMI, color = dataset, fill=dataset)) +
+  	geom_density(alpha = 0.2) +
+    scale_fill_manual(values = coldataset) + 
+    scale_color_manual(values = coldataset) +
+  	theme_classic() +
+  	geom_vline(xintercept = 0.8)
+```
+
+## mitochondrial gene counts ratio
+
+```{r mitochondrial counts ratio, fig.height=4, fig.width=10}
+
+# Visualize the distribution of mitochondrial gene expression detected per cell
+meta_data %>% 
+  	ggplot(aes(color=dataset, x=subsets_Mt_percent, fill=dataset)) + 
+  	geom_density(alpha = 0.2) + 
+    scale_fill_manual(values = coldataset) + 
+    scale_color_manual(values = coldataset) +
+  	scale_x_log10() + 
+  	theme_classic() +
+  	geom_vline(xintercept = 0.2)
+
+```
+
+# UMAPs merged file
+
+```{r process seurat}
+processing <- function(seurat){
+  seurat <- NormalizeData(object = seurat)
+  seurat <- FindVariableFeatures(object = seurat)
+  seurat <- ScaleData(object = seurat, verbose = FALSE)
+
+  seurat <- RunPCA(object = seurat, npcs = 30, verbose = FALSE, )
+  seurat <- RunUMAP(object = seurat, reduction = "pca", dims = 1:20)
+
+  res = c(0.25, 0.4, 0.6, 0.8)
+  seurat <- FindNeighbors(object = seurat, reduction = "pca", dims = 1:20)
+  for(i in 1:length(res)){
+    seurat <- FindClusters(object = seurat, resolution = res[i], random.seed = 1234)
+  }
+  return(seurat)
+}
+
+seurat <- processing(seurat)
+```
+
+
+```{r UMAPs merged file, fig.height=5, fig.width=6}
+Idents(seurat) <- seurat$RNA_snn_res.0.25
+DimPlot(seurat, reduction = "umap", pt.size = 0.4)
+DimPlot(seurat, reduction = "umap", group.by = "timepoint", cols = coltimepoint, pt.size = 0.4, shuffle = T)
+```
+
+# save file 
+
+```{r save file}
+saveRDS(seurat, file = paste0(basedir, "/data/merged_samples_CNS.rds"))
+```
+
+# sessionInfo
+
+```{r sessionInfo}
+sessionInfo()
+date()
+```
+

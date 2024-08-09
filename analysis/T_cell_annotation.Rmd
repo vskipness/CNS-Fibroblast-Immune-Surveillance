@@ -1,0 +1,452 @@
+---
+title: "T cell annotation"
+date: "2024-04-19"
+output:
+  html_document:
+    self_contained: no
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    collapsed: no
+    smooth_scroll: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r include=FALSE}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+# load packages
+
+```{r load packages, eval=TRUE, include=TRUE}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(dplyr)
+  library(purrr)
+  library(ggplot2)
+  library(here)
+  library(runSeurat3)
+  library(SingleCellExperiment)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  library(scran)
+  library(pheatmap)
+  library(biomaRt)
+  library(fgsea)
+  library(grid)
+  library(gridExtra)
+  library(msigdbr)
+  library(muscat)
+  library(ggpubr)
+  library(ExploreSCdataSeurat3)
+  library(enrichplot)
+  #library(Matrix.utils)
+  library(destiny)
+  library(clusterProfiler)
+  library(org.Mm.eg.db)
+  library(DOSE)
+  library(ggtext)
+  })
+```
+
+# load  file
+
+```{r load complete file}
+basedir <- here()
+seurat <- readRDS(file = paste0(basedir, "/data/Tcells.rds"))
+```
+
+# processing 
+
+```{r process T cell file and umap group by timepoint}
+processing <- function(seurat){
+  seurat <- NormalizeData(object = seurat)
+  seurat <- FindVariableFeatures(object = seurat)
+  seurat <- ScaleData(object = seurat, verbose = FALSE)
+  seurat <- RunPCA(object = seurat, npcs = 30, verbose = FALSE, )
+  seurat <- RunUMAP(object = seurat, reduction = "pca", dims = 1:20)
+  res = c(0.1, 0.2, 0.25, 0.4, 0.6, 0.8)
+  seurat <- FindNeighbors(object = seurat, reduction = "pca", dims = 1:20)
+  for(i in 1:length(res)){
+    seurat <- FindClusters(object = seurat, resolution = res[i], random.seed = 1234)
+  }
+  return(seurat)
+}
+
+seurat <- processing(seurat)
+```
+
+# different timepoints
+
+```{r UMAP grouped by timepoints, fig.height=5, fig.width=5.5}
+coltimepoint <- c((brewer.pal(11, "PiYG")[c(9,3)]),
+                (brewer.pal(11, "PRGn")[c(3)]))
+names(coltimepoint) <- unique(seurat$timepoint)
+
+DimPlot(seurat, reduction = "umap", group.by = "timepoint", pt.size = 0.4, cols = coltimepoint, shuffle = T)
+```
+
+```{r cell count timepoint, fig.height=4, fig.width=4}
+cell_count <- data.frame(table(seurat$timepoint))
+colnames(cell_count) <- c("timepoint", "count")
+hsize <- 1.5
+
+ggplot(cell_count, aes(x = hsize, y = count, fill = timepoint)) +
+  scale_fill_manual(values = coltimepoint) +
+  geom_col(color = "white") +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() +
+  ggtitle("timepoint_count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15)) +
+  geom_text(aes(label = count), position = position_stack(vjust = 0.5))
+```
+
+```{r visualization T cells split by timepoint res 0.6, fig.height=4, fig.width=12}
+Idents(seurat) <- seurat$RNA_snn_res.0.6
+DimPlot(seurat, reduction = "umap", split.by = "timepoint", label = T, pt.size = 0.4)
+```
+
+# T cell annotation
+
+```{r visualization T cell cluster res 0.6}
+Idents(seurat) <- seurat$RNA_snn_res.0.6
+DimPlot(seurat, reduction = "umap", label = T, pt.size = 0.4)
+```
+
+## run marker genes
+
+```{r run marker genes for annotation}
+Idents(seurat) <- seurat$RNA_snn_res.0.6
+all.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox")
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 40, wt = avg_log2FC) -> markers.top20
+markers.top20
+ 
+#write.table(seurat_markers, file = "//sg.hcare.ch/appl//kssg-institutimmunbiologie/Sarah/CNS CCL19 D20/Cleaned Code and updated files/DEgenes_Markergenes/Markergenes_Fibroblasts_res0.25_B6_D20_Naive.txt", row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+```
+
+## fusion of two Trm CD8 clusters
+
+```{r difference of the two Trm CD8 clusters}
+Idents(seurat) <- seurat$RNA_snn_res.0.6
+all.markers <- FindMarkers(seurat, ident.1 = "1", ident.2 = c("13"), min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox")
+all.markers %>%
+  top_n(n = 40, wt = avg_log2FC) -> markers.top20
+markers.top20
+
+seurat_sub <- subset(seurat, idents = c("1", "13"))
+
+meta_data <- seurat_sub@meta.data
+meta_data <- meta_data %>%
+        dplyr::rename(nUMI = nCount_RNA,
+                      nGene = nFeature_RNA)
+
+# Visualize the number UMIs/transcripts per cell
+meta_data %>% 
+  	ggplot(aes(color= RNA_snn_res.0.6, x=nUMI, fill= RNA_snn_res.0.6)) + 
+  	geom_density(alpha = 0.2) + 
+    #scale_fill_manual(values = coldataset) + 
+    #scale_color_manual(values = coldataset) +
+  	scale_x_log10() + 
+  	theme_classic() +
+  	ylab("Cell density") +
+  	geom_vline(xintercept = 500)
+
+# Visualize the number nGene per cell
+meta_data %>% 
+  	ggplot(aes(color= RNA_snn_res.0.6, x=nGene, fill= RNA_snn_res.0.6)) + 
+  	geom_density(alpha = 0.2) + 
+    #scale_fill_manual(values = coldataset) + 
+    #scale_color_manual(values = coldataset) +
+  	scale_x_log10() + 
+  	theme_classic() +
+  	ylab("Cell density") +
+  	geom_vline(xintercept = 500)
+
+table(seurat_sub$clusterlabel, seurat_sub$dataset)
+```
+Main difference: gene and UMI count --> therefore will be joined
+
+
+## fusion of the two Tem clusters
+
+```{r difference between both Tem clusters}
+Idents(seurat) <- seurat$RNA_snn_res.0.6
+all.markers <- FindMarkers(seurat, ident.1 = "4", ident.2 = c("5"), min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox", only.pos = T)
+all.markers %>%
+  top_n(n = 40, wt = avg_log2FC) -> markers.top20
+markers.top20
+```
+
+Main difference: more Itgb1, Ankrd11, Kmt2a and Tcf7 expression by cluster 5  
+                 more Gzma, Gzmb, Cd3g, Ccl5 and Ifitm1 expression by cluster 4
+
+## annotation
+
+```{r final T cell annotation, fig.height=8, fig.width=10}
+Idents(seurat) <- seurat$RNA_snn_res.0.6
+
+seurat$clusterlabel <- "-"
+seurat$clusterlabel[which(Idents(seurat)=="0")] <- "Te CD8"
+seurat$clusterlabel[which(Idents(seurat)=="1")] <- "Trm CD8" 
+seurat$clusterlabel[which(Idents(seurat)=="2")] <- "Te CD4"
+seurat$clusterlabel[which(Idents(seurat)=="3")] <- "Tem CD4" 
+seurat$clusterlabel[which(Idents(seurat)=="4")] <- "Tem CD8"
+seurat$clusterlabel[which(Idents(seurat)=="5")] <- "Tem CD8"
+seurat$clusterlabel[which(Idents(seurat)=="6")] <- "NK cells"
+seurat$clusterlabel[which(Idents(seurat)=="7")] <- "Tcm CD4/CD8"
+seurat$clusterlabel[which(Idents(seurat)=="8")] <- "ISG Te CD8"
+seurat$clusterlabel[which(Idents(seurat)=="9")] <- "Te CD8 - S"
+seurat$clusterlabel[which(Idents(seurat)=="10")] <- "Te CD8 - G1"
+seurat$clusterlabel[which(Idents(seurat)=="11")] <- "Cx3cr1+ CD8"
+seurat$clusterlabel[which(Idents(seurat)=="12")] <- "ISG Trm CD8"
+seurat$clusterlabel[which(Idents(seurat)=="13")] <- "Trm CD8" 
+seurat$clusterlabel[which(Idents(seurat)=="14")] <- "Te CD8 - G2/M"
+seurat$clusterlabel[which(Idents(seurat)=="15")] <- "Treg"
+seurat$clusterlabel[which(Idents(seurat)=="16")] <- "γδT"
+seurat$clusterlabel[which(Idents(seurat)=="17")] <- "ILC2"
+
+seurat$clusterlabel <- factor(seurat$clusterlabel, levels = c("Tcm CD4/CD8", "Tem CD8", "Trm CD8", "ISG Trm CD8", "Te CD8", "Te CD8 - G1", "Te CD8 - S", "Te CD8 - G2/M", "ISG Te CD8", "Cx3cr1+ CD8", "Te CD4", "Tem CD4", "Treg", "NK cells", "γδT", "ILC2"))
+
+Idents(seurat) <- seurat$clusterlabel
+DimPlot(seurat, label = T)
+```
+
+```{r dotplot T cell annotation, fig.height=10, fig.width=8}
+library(tidyverse)
+library(ggtext)
+library(glue)
+
+Idents(seurat) <- seurat$clusterlabel
+
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("Cd3e", "Trac", "Trbc2", "Id2", "Cd8a", "Cd4", "Il7r", "Nkg7", "Tcf7", "Sell", "Ccr7", "Slamf6", "S1pr1", "Gzmk", "Ly6a", "Cxcr6", "Cxcr3", "Gzma", "Gzmb", "Itgae", "Ifit1", "Isg15", "Cd28", "Icos", "Cd40lg", "Tbx21", "Klrg1", "Mki67", "Foxp3", "Il2ra", "Ncr1", "Xcl1", "Prf", "Trgc1", "Trdv4", "Rorc", "Gata3", "Cx3cr1", "Cd27", "Tox", "Pdcd1", "Ctla4", "Prf1", "Il2", "Mcm3", "H3c3", "Ccnb2", "Itga4", "Itgb1"))%>%
+  left_join(., genes, by = "geneID")
+  
+DotPlot(seurat, assay = "RNA", features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab("") + ylab("") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = "italic"))
+
+```
+
+## fusion of Te CD8 clusters
+
+```{r fusion of Te CD8 clusters}
+Idents(seurat) <- seurat$clusterlabel
+seurat$clusterlabel[which(Idents(seurat)=="Te CD8 - S")] <- "Te CD8"
+seurat$clusterlabel[which(Idents(seurat)=="Te CD8 - G1")] <- "Te CD8"
+seurat$clusterlabel[which(Idents(seurat)=="Te CD8 - G2/M")] <- "Te CD8"
+
+seurat$clusterlabel <- factor(seurat$clusterlabel, levels = c("NK cells", "ILC2", "γδT", "Treg", "Te CD4", "Te CD8", "ISG Te CD8", "Tcm CD4/CD8", "Tem CD4",  "Tem CD8", "Trm CD8", "ISG Trm CD8", "Cx3cr1+ CD8"))
+
+levels(seurat)
+```
+
+```{r dotplot T cell annotation final, fig.height=7, fig.width=6}
+Idents(seurat) <- seurat$clusterlabel
+
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("Ncr1", "Gata3", "Trgc1", "Cd3e", "Cd8a", "Cd4", "Id2", "Cxcr6", "Il7r", "Cxcr3", "Gzma", "Gzmb", "Ifit1", "Isg15", "Cd28", "Icos", "Tcf7", "Sell", "Ccr7", "Cd40lg", "Itgae", "Klrg1", "Cx3cr1", "Tbx21", "Foxp3"))%>%
+  left_join(., genes, by = "geneID")
+
+DotPlot(seurat, assay = "RNA", features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = "italic")) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab("") + ylab("")
+
+```
+
+## final UMAP of all T cells
+
+```{r final UMAP T cells, fig.height=5, fig.width=7}
+library(pals)
+colcluster <- c(tol()[c(1)],
+                #c("steelblue4"),
+                tol()[c(2:7)],
+                c("sandybrown", "sienna3"), 
+                tol()[c(9,10,11,8)])
+                #, c("darkmagenta")) 
+                #"darkorchid4"))
+names(colcluster) <-  c("NK cells", "ILC2", "γδT", "Treg", "Te CD4", "Te CD8", "ISG Te CD8", "Tcm CD4/CD8", "Tem CD4",  "Tem CD8", "Trm CD8", "ISG Trm CD8", "Cx3cr1+ CD8")
+pal.bands(colcluster)
+
+Idents(seurat) <- seurat$clusterlabel
+DimPlot(seurat, reduction = "umap", pt.size = 0.4, shuffle = T, cols = colcluster)
+
+```
+
+
+```{r final UMAP split by timepoint, fig.height=5, fig.width=15}
+
+DimPlot(seurat, reduction = "umap", pt.size = 0.4, shuffle = T, cols = colcluster, split.by = "timepoint")
+
+```
+
+## T cell phenotype frequencies per timepoint 
+
+```{r frequencies per timepoint}
+datList <- NULL
+for(t in unique(seurat$timepoint)){
+  seuratSub <- subset(seurat, timepoint==t)
+  print(dim(seuratSub))
+  dat_t <- as.data.frame(table(seuratSub$clusterlabel)) %>%
+  mutate(percent=Freq/ncol(seuratSub)) %>% mutate(timepoint=t)
+  datList[[t]] <- dat_t
+}
+
+dat_all <- do.call("rbind", datList)
+
+## plot abundance
+ggbarplot(dat_all, x= "timepoint", palette = colcluster, y= "percent", fill = "Var1", legend = "right", legend.titel = "cluster", ylab = "frequency")  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  # scale_x_discrete(limits=orddatasets)
+```
+
+# gene expression analysis
+
+```{r Featureplots all T cells (Cxcr3 Ccr7 Cxcr6 Tbx21 Tcf7 Id2), fig.height=5, fig.width=5.5}
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("Cxcr3", "Ccr7", "Cxcr6", "Tbx21", "Tcf7", "Id2")) %>%
+  left_join(., genes, by = "geneID")
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(seurat, features = selGenes$gene[i], cols = c("grey", "magenta3"), pt.size = 1)+
+          theme_void() +
+          labs(title = selGenes$geneID[i]) +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25, face = "italic")))
+}
+#genes %>% filter(grepl("Tbx21", gene))
+```
+
+```{r dotplot T cells to seperate Id2+ and Tcf7+, fig.height=2.7, fig.width=6}
+Idents(seurat) <- seurat$clusterlabel
+
+levels(seurat)
+
+genes <- data.frame(gene = rownames(seurat)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("Id2", "Cxcr6", "Cxcr3", "Il7r", "Tcf7", "Ccr7", "Tbx21"))%>%
+  left_join(., genes, by = "geneID")
+
+DotPlot(seurat, assay = "RNA", features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = "italic")) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab("") + ylab("")
+```
+
+## Id2 vs Tcf 7
+
+```{r Id2 vs Tcf 7}
+seurat_sub <- subset(seurat, idents = c("γδT", "Tem CD4", "Tem CD8", "Tcm CD4/CD8", "Trm CD8", "ISG Trm CD8", "Te CD4", "Te CD8", "ISG Te CD8", "Cx3cr1+ CD8"))
+## left out NK cells and ILC2
+
+seurat_sub$newlabel <- "-"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Tem CD8")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Trm CD8")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="ISG Trm CD8")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Tem CD4")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Te CD4")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Te CD8")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="ISG Te CD8")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Cx3cr1+ CD8")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="γδT")] <- "Id2+"
+seurat_sub$newlabel[which(Idents(seurat_sub)=="Tcm CD4/CD8")] <- "Tcf7+"
+
+Idents(seurat_sub) <- seurat_sub$newlabel
+seurat_sub$newlabel <- factor(seurat_sub$newlabel, levels = c("Tcf7+", "Id2+")) 
+
+genes <- data.frame(gene = rownames(seurat_sub)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("Id2", "Tbx21", "Cxcr3", "Cxcr6", "Ccr5", "Ccr2", "Tcf7", "Ccr7", "Il7r"))%>%
+  left_join(., genes, by = "geneID")
+
+DotPlot(seurat_sub, assay = "RNA", features = rev(selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(face = "italic")) +
+  scale_x_discrete(breaks = rev(selGenes$gene), labels = rev(selGenes$geneID)) +
+  xlab("") + ylab("")
+```
+
+## frequencies Id+ and Tcf7+ T cells per timepooint
+
+```{r Frquencie Id+ and Tcf7+ T cells per timepoint}
+colnewlabel <- (brewer.pal(12, "Set3")[c(1,3)])
+names(colnewlabel) <- c("Tcf7+", "Id2+")
+datList <- NULL
+for(t in unique(seurat_sub$timepoint)){
+  seuratSub <- subset(seurat_sub, timepoint==t)
+  print(dim(seuratSub))
+  dat_t <- as.data.frame(table(seuratSub$newlabel)) %>%
+  mutate(percent=Freq/ncol(seuratSub)) %>% mutate(timepoint=t)
+  datList[[t]] <- dat_t
+}
+
+dat_all <- do.call("rbind", datList)
+
+## plot abundance
+ggbarplot(dat_all, x= "timepoint", palette = colnewlabel, y= "percent", fill = "Var1", legend = "right", legend.titel = "cluster", ylab = "frequency")  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  # scale_x_discrete(limits=orddatasets)
+
+```
+
+## differences between Tcf7+ and Id2+ cells
+
+```{r run marker genes Tcf7+ Id2+}
+all.markers <- FindAllMarkers(seurat_sub, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox")
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 40, wt = avg_log2FC) -> markers.top20
+markers.top20
+```
+
+
+```{r Violin plot on all T cells split by timepoint (Cxcr3, Ccr7, Cxcr6, Tbx21, Tcf7, Id2)}
+selGenes <- data.frame(geneID = c("Cxcr3", "Ccr7", "Cxcr6", "Tbx21", "Tcf7", "Id2")) %>%
+  left_join(., genes, by = "geneID")
+
+Idents(seurat_sub) <- seurat_sub$timepoint
+
+for (i in 1:length(selGenes$gene)){
+  print(VlnPlot(seurat_sub, features = selGenes$gene[i], pt.size = 0, split.by = "timepoint", cols = coltimepoint)+
+          theme_classic() +
+          ggtitle(selGenes$geneID[i]) +
+          theme(plot.title = element_text(hjust = 0.5, size = 25, face = "italic"), legend.position = "none")+ labs(x = ""))
+}
+```
+
+
+# save file
+```{r save T cell file}
+saveRDS(seurat, file = paste0(basedir, "/data/T_cells_annotated.rds"))
+```
+
+# sessionInfo
+```{r}
+sessionInfo()
+date()
+```
